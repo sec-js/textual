@@ -1,12 +1,17 @@
 from __future__ import annotations
 
-from rich.text import Text
+from typing import Iterable
+
+from rich.console import Console, ConsoleOptions
+from rich.segment import Segment
+from rich.style import Style
 from typing_extensions import Literal
 
-from ..app import RenderResult
-from ..css._error_tools import friendly_list
-from ..reactive import Reactive, reactive
-from ..widget import Widget
+from textual.app import RenderResult
+from textual.css._error_tools import friendly_list
+from textual.geometry import Size
+from textual.reactive import Reactive, reactive
+from textual.widget import Widget
 
 RuleOrientation = Literal["horizontal", "vertical"]
 """The valid orientations of the rule widget."""
@@ -72,24 +77,54 @@ class InvalidLineStyle(Exception):
     """Exception raised for an invalid rule line style."""
 
 
+class HorizontalRuleRenderable:
+    """Renders a horizontal rule."""
+
+    def __init__(self, character: str, style: Style, width: int):
+        self.character = character
+        self.style = style
+        self.width = width
+
+    def __rich_console__(
+        self, console: Console, options: ConsoleOptions
+    ) -> Iterable[Segment]:
+        yield Segment(self.width * self.character, self.style)
+
+
+class VerticalRuleRenderable:
+    """Renders a vertical rule."""
+
+    def __init__(self, character: str, style: Style, height: int):
+        self.character = character
+        self.style = style
+        self.height = height
+
+    def __rich_console__(
+        self, console: Console, options: ConsoleOptions
+    ) -> Iterable[Segment]:
+        segment = Segment(self.character, self.style)
+        new_line = Segment.line()
+        return ([segment, new_line] * self.height)[:-1]
+
+
 class Rule(Widget, can_focus=False):
     """A rule widget to separate content, similar to a `<hr>` HTML tag."""
 
     DEFAULT_CSS = """
     Rule {
-        color: $primary;
+        color: $secondary;
     }
 
     Rule.-horizontal {
-        min-height: 1;
-        max-height: 1;
+        height: 1;
         margin: 1 0;
+        width: 1fr;      
     }
 
     Rule.-vertical {
-        min-width: 1;
-        max-width: 1;
+        width: 1;
         margin: 0 2;
+        height: 1fr;
     }
     """
 
@@ -122,15 +157,21 @@ class Rule(Widget, can_focus=False):
         super().__init__(name=name, id=id, classes=classes, disabled=disabled)
         self.orientation = orientation
         self.line_style = line_style
+        self.expand = True
 
     def render(self) -> RenderResult:
-        rule_char: str
+        rule_character: str
+        style = self.rich_style
         if self.orientation == "vertical":
-            rule_char = _VERTICAL_LINE_CHARS[self.line_style]
-            return Text(rule_char * self.size.height)
+            rule_character = _VERTICAL_LINE_CHARS[self.line_style]
+            return VerticalRuleRenderable(
+                rule_character, style, self.content_size.height
+            )
         elif self.orientation == "horizontal":
-            rule_char = _HORIZONTAL_LINE_CHARS[self.line_style]
-            return Text(rule_char * self.size.width)
+            rule_character = _HORIZONTAL_LINE_CHARS[self.line_style]
+            return HorizontalRuleRenderable(
+                rule_character, style, self.content_size.width
+            )
         else:
             raise InvalidRuleOrientation(
                 f"Valid rule orientations are {friendly_list(_VALID_RULE_ORIENTATIONS)}"
@@ -155,6 +196,16 @@ class Rule(Widget, can_focus=False):
                 f"Valid rule line styles are {friendly_list(_VALID_LINE_STYLES)}"
             )
         return style
+
+    def get_content_width(self, container: Size, viewport: Size) -> int:
+        if self.orientation == "horizontal":
+            return container.width
+        return 1
+
+    def get_content_height(self, container: Size, viewport: Size, width: int) -> int:
+        if self.orientation == "horizontal":
+            return 1
+        return container.height
 
     @classmethod
     def horizontal(

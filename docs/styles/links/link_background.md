@@ -9,7 +9,7 @@ The `link-background` style sets the background color of the link.
 ## Syntax
 
 --8<-- "docs/snippets/syntax_block_start.md"
-link-background: <a href="../../css_types/color">&lt;color&gt;</a> [<a href="../../css_types/percentage">&lt;percentage&gt;</a>];
+link-background: <a href="../../../css_types/color">&lt;color&gt;</a> [<a href="../../../css_types/percentage">&lt;percentage&gt;</a>];
 --8<-- "docs/snippets/syntax_block_end.md"
 
 `link-background` accepts a [`<color>`](../../css_types/color.md) (with an optional opacity level defined by a [`<percentage>`](../../css_types/percentage.md)) that is used to define the background color of text enclosed in Textual action links.
@@ -37,7 +37,7 @@ It also shows that `link-background` does not affect hyperlinks.
 
 === "link_background.tcss"
 
-    ```sass hl_lines="2 6 10"
+    ```css hl_lines="2 6 10"
     --8<-- "docs/examples/styles/link_background.tcss"
     ```
 
@@ -45,7 +45,7 @@ It also shows that `link-background` does not affect hyperlinks.
 
 ## CSS
 
-```sass
+```css
 link-background: red 70%;
 link-background: $accent;
 ```
@@ -63,4 +63,4 @@ widget.styles.link_background = Color(100, 30, 173)
 ## See also
 
  - [`link-color`](./link_color.md) to set the color of link text.
- - [`link-background-hover](./link_background_hover.md) to set the background color of link text when the mouse pointer is over it.
+ - [`link-background-hover`](./link_background_hover.md) to set the background color of link text when the mouse pointer is over it.

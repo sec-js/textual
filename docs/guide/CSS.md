@@ -12,7 +12,7 @@ CSS stands for _Cascading Stylesheet_. A stylesheet is a list of styles and rule
 
 Let's look at some Textual CSS.
 
-```sass
+```css
 Header {
   dock: top;
   height: 3;
@@ -26,7 +26,7 @@ This is an example of a CSS _rule set_. There may be many such sections in any g
 
 Let's break this CSS code down a bit.
 
-```sass hl_lines="1"
+```css hl_lines="1"
 Header {
   dock: top;
   height: 3;
@@ -38,7 +38,7 @@ Header {
 
 The first line is a _selector_ which tells Textual which widget(s) to modify. In the above example, the styles will be applied to a widget defined by the Python class `Header`.
 
-```sass hl_lines="2 3 4 5 6"
+```css hl_lines="2 3 4 5 6"
 Header {
   dock: top;
   height: 3;
@@ -153,7 +153,7 @@ These are used by the CSS to identify parts of the DOM. We will cover these in t
 
 Here's the CSS file we are applying:
 
-```sass title="dom4.tcss"
+```css title="dom4.tcss"
 --8<-- "docs/examples/guide/dom4.tcss"
 ```
 
@@ -195,29 +195,31 @@ Let's look at the selectors supported by Textual CSS.
 
 ### Type selector
 
-The _type_ selector matches the name of the (Python) class. For example, the following widget can be matched with a `Button` selector:
+The _type_ selector matches the name of the (Python) class.
+Consider the following widget class:
 
 ```python
 from textual.widgets import Static
 
-class Button(Static):
+class Alert(Static):
     pass
 ```
 
-The following rule applies a border to this widget:
+Alert widgets may be styled with the following CSS (to give them a red border):
 
-```sass
-Button {
-  border: solid blue;
+```css
+Alert {
+  border: solid red;
 }
 ```
 
-The type selector will also match a widget's base classes. Consequently, a `Static` selector will also style the button because the `Button` Python class extends `Static`.
+The type selector will also match a widget's base classes.
+Consequently, a `Static` selector will also style the button because the `Alert` (Python) class extends `Static`.
 
-```sass
+```css
 Static {
   background: blue;
-  border: rounded white;
+  border: rounded green;
 }
 ```
 
@@ -225,7 +227,10 @@ Static {
 
     The fact that the type selector matches base classes is a departure from browser CSS which doesn't have the same concept.
 
-You may have noticed that the `border` rule exists in both Static and Button. When this happens, Textual will use the most recently defined sub-class within a list of bases. So Button wins over Static, and Static wins over Widget (the base class of all widgets). Hence if both rules were in a stylesheet, the buttons would be "solid blue" and not "rounded white".
+You may have noticed that the `border` rule exists in both `Static` and `Alert`.
+When this happens, Textual will use the most recently defined sub-class.
+So `Alert` wins over `Static`, and `Static` wins over `Widget` (the base class of all widgets).
+Hence if both rules were in a stylesheet, `Alert` widgets would have a "solid red" border and not a "rounded green" border.
 
 ### ID selector
 
@@ -239,7 +244,7 @@ yield Button(id="next")
 
 You can match an ID with a selector starting with a hash (`#`). Here is how you might draw a red outline around the above button:
 
-```sass
+```css
 #next {
   outline: red;
 }
@@ -267,7 +272,7 @@ yield Button(classes="error disabled")
 
 To match a Widget with a given class in CSS you can precede the class name with a dot (`.`). Here's a rule with a class selector to match the `"success"` class name:
 
-```sass
+```css
 .success {
   background: green;
   color: white;
@@ -280,7 +285,7 @@ To match a Widget with a given class in CSS you can precede the class name with 
 
 Class name selectors may be _chained_ together by appending another full stop and class name. The selector will match a widget that has _all_ of the class names set. For instance, the following sets a red background on widgets that have both `error` _and_ `disabled` class names.
 
-```sass
+```css
 .error.disabled {
   background: darkred;
 }
@@ -301,7 +306,7 @@ The _universal_ selector is denoted by an asterisk and will match _all_ widgets.
 
 For example, the following will draw a red outline around all widgets:
 
-```sass
+```css
 * {
   outline: solid red;
 }
@@ -311,7 +316,7 @@ For example, the following will draw a red outline around all widgets:
 
 Pseudo classes can be used to match widgets in a particular state. Pseudo classes are set automatically by Textual. For instance, you might want a button to have a green background when the mouse cursor moves over it. We can do this with the `:hover` pseudo selector.
 
-```sass
+```css
 Button:hover {
   background: green;
 }
@@ -321,13 +326,18 @@ The `background: green` is only applied to the Button underneath the mouse curso
 
 Here are some other pseudo classes:
 
+- `:blur` Matches widgets which *do not* have input focus.
+- `:dark` Matches widgets in dark themes (where `App.theme.dark == True`).
 - `:disabled` Matches widgets which are in a disabled state.
 - `:enabled` Matches widgets which are in an enabled state.
-- `:focus` Matches widgets which have input focus.
-- `:blur` Matches widgets which *do not* have input focus.
+- `:even` Matches a widget at an evenly numbered position within its siblings.
+- `:first-of-type` Matches a widget that is the first of its type amongst its siblings.
 - `:focus-within` Matches widgets with a focused child widget.
-- `:dark` Matches widgets in dark mode (where `App.dark == True`).
-- `:light` Matches widgets in dark mode (where `App.dark == False`).
+- `:focus` Matches widgets which have input focus.
+- `:inline` Matches widgets when the app is running in inline mode.
+- `:last-of-type` Matches a widget that is the last of its type amongst its siblings.
+- `:light` Matches widgets in light themes (where `App.theme.dark == False`).
+- `:odd` Matches a widget at an oddly numbered position within its siblings.
 
 ## Combinators
 
@@ -345,7 +355,7 @@ Here's a section of DOM to illustrate this combinator:
 
 Let's say we want to make the text of the buttons in the dialog bold, but we _don't_ want to change the Button in the sidebar. We can do this with the following rule:
 
-```sass hl_lines="1"
+```css hl_lines="1"
 #dialog Button {
   text-style: bold;
 }
@@ -355,7 +365,7 @@ The `#dialog Button` selector matches all buttons that are below the widget with
 
 As with all selectors, you can combine as many as you wish. The following will match a `Button` that is under a `Horizontal` widget _and_ under a widget with an id of `"dialog"`:
 
-```sass
+```css
 #dialog Horizontal Button {
   text-style: bold;
 }
@@ -373,7 +383,7 @@ Let's use this to match the Button in the sidebar given the following DOM:
 
 We can use the following CSS to style all buttons which have a parent with an ID of `sidebar`:
 
-```sass
+```css
 #sidebar > Button {
   text-style: underline;
 }
@@ -399,7 +409,7 @@ The specificity rules are usually enough to fix any conflicts in your stylesheet
 
 Here's an example that makes buttons blue when hovered over with the mouse, regardless of any other selectors that match Buttons:
 
-```sass hl_lines="2"
+```css hl_lines="2"
 Button:hover {
   background: blue !important;
 }
@@ -411,14 +421,14 @@ You can define variables to reduce repetition and encourage consistency in your 
 Variables in Textual CSS are prefixed with `$`.
 Here's an example of how you might define a variable called `$border`:
 
-```sass
+```css
 $border: wide green;
 ```
 
 With our variable assigned, we can write `$border` and it will be substituted with `wide green`.
 Consider the following snippet:
 
-```sass
+```css
 #foo {
   border: $border;
 }
@@ -426,7 +436,7 @@ Consider the following snippet:
 
 This will be translated into:
 
-```sass
+```css
 #foo {
   border: wide green;
 }
@@ -451,7 +461,7 @@ All CSS rules support a special value called `initial`, which will reset a value
 Let's look at an example.
 The following will set the background of a button to green:
 
-```sass
+```css
 Button {
   background: green;
 }
@@ -460,7 +470,7 @@ Button {
 If we want a specific button (or buttons) to use the default color, we can set the value to `initial`.
 For instance, if we have a widget with a (CSS) class called `dialog`, we could reset the background color of all buttons inside the dialog with the following CSS:
 
-```sass
+```css
 .dialog Button {
   background: initial;
 }
@@ -468,3 +478,101 @@ For instance, if we have a widget with a (CSS) class called `dialog`, we could r
 
 Note that `initial` will set the value back to the value defined in any [default css](./widgets.md#default-css).
 If you use `initial` within default css, it will treat the rule as completely unstyled.
+
+
+## Nesting CSS
+
+!!! tip "Added in version 0.47.0"
+
+CSS rule sets may be *nested*, i.e. they can contain other rule sets.
+When a rule set occurs within an existing rule set, it inherits the selector from the enclosing rule set.
+
+Let's put this into practical terms.
+The following example will display two boxes containing the text "Yes" and "No" respectively.
+These could eventually form the basis for buttons, but for this demonstration we are only interested in the CSS.
+
+=== "nesting01.tcss (no nesting)"
+
+    ```css
+    --8<-- "docs/examples/guide/css/nesting01.tcss"
+    ```
+
+=== "nesting01.py"
+
+    ```python
+    --8<-- "docs/examples/guide/css/nesting01.py"
+    ```
+
+=== "Output"
+
+    ```{.textual path="docs/examples/guide/css/nesting01.py"}
+    ```
+
+The CSS is quite straightforward; there is one rule for the container, one for all buttons, and one rule for each of the buttons.
+However it is easy to imagine this stylesheet growing more rules as we add features.
+
+Nesting allows us to group rule sets which have common selectors.
+In the example above, the rules all start with `#questions`.
+When we see a common prefix on the selectors, this is a good indication that we can use nesting.
+
+The following produces identical results to the previous example, but adds nesting of the rules.
+
+=== "nesting02.tcss (with nesting)"
+
+    ```css
+    --8<-- "docs/examples/guide/css/nesting02.tcss"
+    ```
+
+=== "nesting02.py"
+
+    ```python
+    --8<-- "docs/examples/guide/css/nesting02.py"
+    ```
+
+=== "Output"
+
+    ```{.textual path="docs/examples/guide/css/nesting02.py"}
+    ```
+
+!!! tip
+
+    Indenting the rule sets is not strictly required, but it does make it easier to understand how the rule sets are related to each other.
+
+In the first example we had a rule set that began with the selector `#questions .button`, which would match any widget with a class called "button" that is inside a container with id `questions`.
+
+In the second example, the button rule selector is simply `.button`, but it is *within* the rule set with selector `#questions`.
+The nesting means that the button rule set will inherit the selector from the outer rule set, so it is equivalent to `#questions .button`.
+
+### Nesting selector
+
+The two remaining rules are nested within the button rule, which means they will inherit their selectors from the button rule set *and* the outer `#questions` rule set.
+
+You may have noticed that the rules for the button styles contain a syntax we haven't seen before.
+The rule for the Yes button is `&.affirmative`.
+The ampersand (`&`) is known as the *nesting selector* and it tells Textual that the selector should be combined with the selector from the outer rule set.
+
+So `&.affirmative` in the example above, produces the equivalent of `#questions .button.affirmative` which selects a widget with both the `button` and `affirmative` classes.
+Without `&` it would be equivalent to `#questions .button .affirmative` (note the additional space) which would only match a widget with class `affirmative` inside a container with class `button`.
+
+
+For reference, lets see those two CSS files side-by-side:
+
+=== "nesting01.tcss"
+
+    ```css
+    --8<-- "docs/examples/guide/css/nesting01.tcss"
+    ```
+
+=== "nesting02.tcss"
+
+    ```sass
+    --8<-- "docs/examples/guide/css/nesting02.tcss"
+    ```
+
+
+Note how nesting bundles related rules together.
+If we were to add other selectors for additional screens or widgets, it would be easier to find the rules which will be applied.
+
+### Why use nesting?
+
+There is no requirement to use nested CSS, but it can help to group related rule sets together (which makes it easier to edit). Nested CSS can also help you avoid some repetition in your selectors, i.e. in the nested CSS we only need to type `#questions` once, rather than four times in the non-nested CSS.

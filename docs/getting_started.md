@@ -38,7 +38,7 @@ pip install textual-dev
 
 ### From conda-forge
 
-Textual is also available on [conda-forge](https://conda-forge.org/). The preferred package manager for conda-forge is currently [micromamba](https://mamba.readthedocs.io/en/latest/installation.html#micromamba):
+Textual is also available on [conda-forge](https://conda-forge.org/). The preferred package manager for conda-forge is currently [micromamba](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html):
 
 ```
 micromamba install -c conda-forge textual
@@ -66,11 +66,6 @@ Once you have Textual installed, run the following to get an impression of what 
 
 ```bash
 python -m textual
-```
-
-If Textual is installed you should see the following:
-
-```{.textual path="src/textual/demo.py" columns="127" lines="53" press="enter,tab,w,i,l,l"}
 ```
 
 ## Examples
@@ -104,8 +99,9 @@ cd textual/examples/
 python code_browser.py ../
 ```
 
+### Widget examples
 
-
+In addition to the example apps, you can also find the code listings used to generate the screenshots in these docs in the `docs/examples` directory.
 
 ## Need help?
 

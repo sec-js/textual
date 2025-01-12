@@ -301,36 +301,55 @@ async def test_select_line(index, content, expected_selection):
 async def test_cursor_screen_offset_and_terminal_cursor_position_update():
     class TextAreaCursorScreenOffset(App):
         def compose(self) -> ComposeResult:
-            yield TextArea("abc\ndef")
+            yield TextArea.code_editor("abc\ndef")
 
     app = TextAreaCursorScreenOffset()
     async with app.run_test():
         text_area = app.query_one(TextArea)
 
-        assert app.cursor_position == (3, 0)
+        assert app.cursor_position == (5, 1)
 
         text_area.cursor_location = (1, 1)
 
-        assert text_area.cursor_screen_offset == (4, 1)
+        assert text_area.cursor_screen_offset == (6, 2)
 
         # Also ensure that this update has been reported back to the app
         # for the benefit of IME/emoji popups.
-        assert app.cursor_position == (4, 1)
+        assert app.cursor_position == (6, 2)
 
 
 async def test_cursor_screen_offset_and_terminal_cursor_position_scrolling():
     class TextAreaCursorScreenOffset(App):
         def compose(self) -> ComposeResult:
-            yield TextArea("AB\nAB\nAB\nAB\nAB\nAB\n")
+            yield TextArea.code_editor("AB\nAB\nAB\nAB\nAB\nAB\n")
 
     app = TextAreaCursorScreenOffset()
     async with app.run_test(size=(80, 2)) as pilot:
         text_area = app.query_one(TextArea)
 
-        assert app.cursor_position == (3, 0)
+        assert app.cursor_position == (5, 1)
 
         text_area.cursor_location = (5, 0)
         await pilot.pause()
 
-        assert text_area.cursor_screen_offset == (3, 1)
-        assert app.cursor_position == (3, 1)
+        assert text_area.cursor_screen_offset == (5, 1)
+        assert app.cursor_position == (5, 1)
+
+
+async def test_mouse_selection_with_tab_characters():
+    """Regression test for https://github.com/Textualize/textual/issues/5212"""
+
+    class TextAreaTabsApp(App):
+        def compose(self) -> ComposeResult:
+            yield TextArea(soft_wrap=False, text="\t\t")
+
+    app = TextAreaTabsApp()
+    async with app.run_test() as pilot:
+        text_area = pilot.app.query_one(TextArea)
+        expected_selection = Selection((0, 0), (0, 0))
+        assert text_area.selection == expected_selection
+
+        await pilot.mouse_down(text_area, offset=(2, 1))
+        await pilot.hover(text_area, offset=(3, 1))
+
+        assert text_area.selection == expected_selection

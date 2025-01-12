@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import asyncio
-from functools import lru_cache, partial
+from functools import partial
 from inspect import isawaitable, signature
 from typing import TYPE_CHECKING, Any, Callable
 
-from . import active_app
+from textual import active_app
 
 if TYPE_CHECKING:
-    from .app import App
+    from textual.app import App
 
 # Maximum seconds before warning about a slow callback
 INVOKE_TIMEOUT_WARNING = 3
@@ -16,16 +16,24 @@ INVOKE_TIMEOUT_WARNING = 3
 
 def count_parameters(func: Callable) -> int:
     """Count the number of parameters in a callable"""
+    try:
+        return func._param_count
+    except AttributeError:
+        pass
     if isinstance(func, partial):
-        return _count_parameters(func.func) + len(func.args)
-    if hasattr(func, "__self__"):
+        param_count = _count_parameters(func.func) - (
+            len(func.args) + len(func.keywords)
+        )
+    elif hasattr(func, "__self__"):
         # Bound method
         func = func.__func__  # type: ignore
-        return _count_parameters(func) - 1
-    return _count_parameters(func)
+        param_count = _count_parameters(func) - 1
+    else:
+        param_count = _count_parameters(func)
+    func._param_count = param_count
+    return param_count
 
 
-@lru_cache(maxsize=2048)
 def _count_parameters(func: Callable) -> int:
     """Count the number of parameters in a callable"""
     return len(signature(func).parameters)
@@ -48,7 +56,7 @@ async def _invoke(callback: Callable, *params: object) -> Any:
     return result
 
 
-async def invoke(callback: Callable[[], Any], *params: object) -> Any:
+async def invoke(callback: Callable[..., Any], *params: object) -> Any:
     """Invoke a callback with an arbitrary number of parameters.
 
     Args:

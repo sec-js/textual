@@ -6,7 +6,7 @@ from typing import Any
 
 from rich.pretty import Pretty as PrettyRenderable
 
-from ..widget import Widget
+from textual.widget import Widget
 
 
 class Pretty(Widget):
@@ -59,4 +59,5 @@ class Pretty(Widget):
             object: The object to pretty-print.
         """
         self._renderable = PrettyRenderable(object)
+        self.clear_cached_dimensions()
         self.refresh(layout=True)

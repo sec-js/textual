@@ -1,14 +1,18 @@
 from string import punctuation
+from typing import Type
 
 import pytest
 
-from textual import events
+from textual import events, work
+from textual._on import on
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Center, Middle
-from textual.events import MouseDown, MouseUp
+from textual.css.errors import StylesheetError
 from textual.pilot import OutOfBounds
+from textual.screen import Screen
 from textual.widgets import Button, Label
+from textual.worker import WorkerFailed
 
 KEY_CHARACTERS_TO_TEST = "akTW03" + punctuation
 """Test some "simple" characters (letters + digits) and all punctuation."""
@@ -57,7 +61,7 @@ async def test_pilot_press_ascii_chars():
             assert keys_pressed[-1] == char
 
 
-async def test_pilot_exception_catching_compose():
+async def test_pilot_exception_catching_app_compose():
     """Ensuring that test frameworks are aware of exceptions
     inside compose methods when running via Pilot run_test()."""
 
@@ -65,6 +69,21 @@ async def test_pilot_exception_catching_compose():
         def compose(self) -> ComposeResult:
             1 / 0
             yield Label("Beep")
+
+    with pytest.raises(ZeroDivisionError):
+        async with FailingApp().run_test():
+            pass
+
+
+async def test_pilot_exception_catching_widget_compose():
+    class SomeScreen(Screen[None]):
+        def compose(self) -> ComposeResult:
+            1 / 0
+            yield Label("Beep")
+
+    class FailingApp(App[None]):
+        def on_mount(self) -> None:
+            self.push_screen(SomeScreen())
 
     with pytest.raises(ZeroDivisionError):
         async with FailingApp().run_test():
@@ -84,6 +103,21 @@ async def test_pilot_exception_catching_action():
     with pytest.raises(ZeroDivisionError):
         async with FailingApp().run_test() as pilot:
             await pilot.press("b")
+
+
+async def test_pilot_exception_catching_worker():
+    class SimpleAppThatCrashes(App[None]):
+        def on_mount(self) -> None:
+            self.crash()
+
+        @work(name="crash")
+        async def crash(self) -> None:
+            1 / 0
+
+    with pytest.raises(WorkerFailed) as exc:
+        async with SimpleAppThatCrashes().run_test():
+            pass
+        assert exc.type is ZeroDivisionError
 
 
 async def test_pilot_click_screen():
@@ -352,3 +386,67 @@ async def test_pilot_target_screen_always_true(method, offset):
     async with app.run_test(size=(80, 24)) as pilot:
         pilot_method = getattr(pilot, method)
         assert (await pilot_method(offset=offset)) is True
+
+
+async def test_pilot_resize_terminal():
+    app = App()
+    async with app.run_test(size=(80, 24)) as pilot:
+        # Sanity checks.
+        assert app.size == (80, 24)
+        assert app.screen.size == (80, 24)
+        await pilot.resize_terminal(27, 15)
+        await pilot.pause()
+        assert app.size == (27, 15)
+        assert app.screen.size == (27, 15)
+
+
+async def test_fail_early():
+    # https://github.com/Textualize/textual/issues/3282
+    class MyApp(App):
+        CSS_PATH = "foo.tcss"
+
+    app = MyApp()
+    with pytest.raises(StylesheetError):
+        async with app.run_test() as pilot:
+            await pilot.press("enter")
+
+
+async def test_click_by_widget():
+    """Test that click accept a Widget instance."""
+    pressed = False
+
+    class TestApp(CenteredButtonApp):
+        def on_button_pressed(self):
+            nonlocal pressed
+            pressed = True
+
+    app = TestApp()
+    async with app.run_test() as pilot:
+        button = app.query_one(Button)
+        assert not pressed
+        await pilot.click(button)
+        assert pressed
+
+
+@pytest.mark.parametrize("times", [1, 2, 3])
+async def test_click_times(times: int):
+    """Test that Pilot.click() can be called with a `times` argument."""
+
+    events_received: list[Type[events.Event]] = []
+
+    class TestApp(App[None]):
+        def compose(self) -> ComposeResult:
+            yield Label("Click counter")
+
+        @on(events.Click)
+        @on(events.MouseDown)
+        @on(events.MouseUp)
+        def on_label_clicked(self, event: events.Event):
+            events_received.append(event.__class__)
+
+    app = TestApp()
+    async with app.run_test() as pilot:
+        await pilot.click(Label, times=times)
+        assert (
+            events_received == [events.MouseDown, events.MouseUp, events.Click] * times
+        )

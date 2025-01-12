@@ -21,11 +21,19 @@ from rich.segment import Segment
 from rich.style import Style
 from rich.terminal_theme import TerminalTheme
 
-from .color import Color
+from textual.color import Color
 
 
 class LineFilter(ABC):
     """Base class for a line filter."""
+
+    def __init__(self, enabled: bool = True) -> None:
+        """
+
+        Args:
+            enabled: If `enabled` is `False` then the filter will not be applied.
+        """
+        self.enabled = enabled
 
     @abstractmethod
     def apply(self, segments: list[Segment], background: Color) -> list[Segment]:
@@ -86,6 +94,32 @@ class Monochrome(LineFilter):
         ]
 
 
+class NoColor(LineFilter):
+    """Remove all color information from segments."""
+
+    DEFAULT_COLORS = Style.from_color(
+        RichColor.parse("default"), RichColor.parse("default")
+    )
+
+    def apply(self, segments: list[Segment], background: Color) -> list[Segment]:
+        """Transform a list of segments.
+
+        Args:
+            segments: A list of segments.
+            background: The background color.
+
+        Returns:
+            A new list of segments.
+        """
+
+        _Segment = Segment
+        default_colors = self.DEFAULT_COLORS
+        return [
+            _Segment(text, None if style is None else (style + default_colors), control)
+            for text, style, control in segments
+        ]
+
+
 NO_DIM = Style(dim=False)
 """A Style to set dim to False."""
 
@@ -143,13 +177,14 @@ def dim_style(style: Style, background: Color, factor: float) -> Style:
 class DimFilter(LineFilter):
     """Replace dim attributes with modified colors."""
 
-    def __init__(self, dim_factor: float = 0.5) -> None:
+    def __init__(self, dim_factor: float = 0.5, enabled: bool = True) -> None:
         """Initialize the filter.
 
         Args:
             dim_factor: The factor to dim by; 0 is 100% background (i.e. invisible), 1.0 is no change.
         """
         self.dim_factor = dim_factor
+        super().__init__(enabled=enabled)
 
     def apply(self, segments: list[Segment], background: Color) -> list[Segment]:
         """Transform a list of segments.
@@ -182,13 +217,14 @@ class DimFilter(LineFilter):
 class ANSIToTruecolor(LineFilter):
     """Convert ANSI colors to their truecolor equivalents."""
 
-    def __init__(self, terminal_theme: TerminalTheme):
+    def __init__(self, terminal_theme: TerminalTheme, enabled: bool = True):
         """Initialise filter.
 
         Args:
             terminal_theme: A rich terminal theme.
         """
-        self.terminal_theme = terminal_theme
+        self._terminal_theme = terminal_theme
+        super().__init__(enabled=enabled)
 
     @lru_cache(1024)
     def truecolor_style(self, style: Style) -> Style:
@@ -200,7 +236,7 @@ class ANSIToTruecolor(LineFilter):
         Returns:
             New style.
         """
-        terminal_theme = self.terminal_theme
+        terminal_theme = self._terminal_theme
         color = style.color
         if color is not None and color.is_system_defined:
             color = RichColor.from_rgb(
@@ -211,6 +247,7 @@ class ANSIToTruecolor(LineFilter):
             bgcolor = RichColor.from_rgb(
                 *bgcolor.get_truecolor(terminal_theme, foreground=False)
             )
+
         return style + Style.from_color(color, bgcolor)
 
     def apply(self, segments: list[Segment], background: Color) -> list[Segment]:

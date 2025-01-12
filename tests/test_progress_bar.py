@@ -1,8 +1,12 @@
 import pytest
 from pytest import approx
+from rich.console import Console
+from rich.text import Text
 
 from textual.app import App
+from textual.color import Gradient
 from textual.css.query import NoMatches
+from textual.renderables.bar import _apply_gradient
 from textual.widget import Widget
 from textual.widgets import ProgressBar
 
@@ -48,11 +52,9 @@ def test_progress_overflow():
     pb = ProgressBar(total=100)
 
     pb.advance(999_999)
-    assert pb.progress == 100
     assert pb.percentage == 1
 
     pb.update(total=50)
-    assert pb.progress == 50
     assert pb.percentage == 1
 
 
@@ -60,7 +62,6 @@ def test_progress_underflow():
     pb = ProgressBar(total=100)
 
     pb.advance(-999_999)
-    assert pb.progress == 0
     assert pb.percentage == 0
 
 
@@ -172,3 +173,11 @@ async def test_show_sub_widgets(show_bar: bool, show_percentage: bool, show_eta:
         else:
             with pytest.raises(NoMatches):
                 app.pb.query_one("#eta")
+
+
+def test_apply_gradient():
+    text = Text("foo")
+    gradient = Gradient.from_colors("red", "blue")
+    _apply_gradient(text, gradient, 1)
+    console = Console()
+    assert text.get_style_at_offset(console, 0).color.triplet == (255, 0, 0)

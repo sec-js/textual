@@ -49,8 +49,8 @@ class LabelSwitch(Widget):
     DEFAULT_CSS = """
     LabelSwitch Label {
         text-align: center;
-        width: 1fr;       
-        text-style: bold;         
+        width: 1fr;
+        text-style: bold;
     }
 
     LabelSwitch Label#label-5 {
@@ -77,6 +77,9 @@ class Timer(Digits):
         width: auto;
         margin: 2 8;
         color: $warning;
+        &:light {
+            color: $secondary;
+        }
     }
     """
     start_time = var(0.0)
@@ -101,7 +104,7 @@ class MerlinApp(App):
 
     CSS = """
     Screen {
-        align: center middle;   
+        align: center middle;
     }
 
     Screen.-win {
@@ -110,12 +113,12 @@ class MerlinApp(App):
 
     Screen.-win Timer {
         color: $success;
-    }    
-    
+    }
+
     Grid {
         width: auto;
         height: auto;
-        border: thick $primary;
+        border: thick $border;
         padding: 1 2;
         grid-size: 3 3;
         grid-rows: auto;
@@ -162,6 +165,7 @@ class MerlinApp(App):
         if self.check_win():
             self.query_one("Screen").add_class("-win")
             self.query_one(Timer).running = False
+            self.notify("You win!", title="congratulations", severity="information")
 
     def on_key(self, event: events.Key) -> None:
         """Maps switches to keys, so we can use the keyboard as well."""
