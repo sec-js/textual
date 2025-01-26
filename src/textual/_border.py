@@ -8,8 +8,8 @@ from rich.segment import Segment
 from rich.style import Style
 from rich.text import Text
 
-from .color import Color
-from .css.types import AlignHorizontal, EdgeStyle, EdgeType
+from textual.color import Color
+from textual.css.types import AlignHorizontal, EdgeStyle, EdgeType
 
 if TYPE_CHECKING:
     from typing_extensions import TypeAlias
@@ -106,6 +106,11 @@ BORDER_CHARS: dict[
         ("▊", "█", "▎"),
         ("▊", " ", "▎"),
         ("▊", "▁", "▎"),
+    ),
+    "tab": (
+        ("▁", "▁", "▁"),
+        ("▎", " ", "▊"),
+        ("▔", "▔", "▔"),
     ),
     "wide": (
         ("▁", "▁", "▁"),
@@ -205,6 +210,11 @@ BORDER_LOCATIONS: dict[
         (2, 0, 1),
         (2, 0, 1),
     ),
+    "tab": (
+        (1, 1, 1),
+        (0, 1, 3),
+        (1, 1, 1),
+    ),
     "wide": (
         (1, 1, 1),
         (0, 1, 3),
@@ -215,7 +225,10 @@ BORDER_LOCATIONS: dict[
 # Some borders (such as panel) require that the title (and subtitle) be draw in reverse.
 # This is a mapping of the border type on to a tuple for the top and bottom borders, to indicate
 # reverse colors is required.
-BORDER_TITLE_FLIP: dict[str, tuple[bool, bool]] = {"panel": (True, False)}
+BORDER_TITLE_FLIP: dict[str, tuple[bool, bool]] = {
+    "panel": (True, False),
+    "tab": (True, True),
+}
 
 # In a similar fashion, we extract the border _label_ locations for easier access when
 # rendering a border label.
@@ -237,6 +250,8 @@ BoxSegments: TypeAlias = Tuple[
 
 Borders: TypeAlias = Tuple[EdgeStyle, EdgeStyle, EdgeStyle, EdgeStyle]
 
+REVERSE_STYLE = Style(reverse=True)
+
 
 @lru_cache(maxsize=1024)
 def get_box(
@@ -249,9 +264,9 @@ def get_box(
 
     Args:
         name: Name of the box type.
-        inner_style: The inner style (widget background)
-        outer_style: The outer style (parent background)
-        style: Widget style
+        inner_style: The inner style (widget background).
+        outer_style: The outer style (parent background).
+        style: Widget style.
 
     Returns:
         A tuple of 3 Segment triplets.
@@ -271,11 +286,12 @@ def get_box(
 
     inner = inner_style + style
     outer = outer_style + style
+
     styles = (
         inner,
         outer,
-        Style.from_color(outer.bgcolor, inner.color),
-        Style.from_color(inner.bgcolor, outer.color),
+        Style.from_color(inner.color, outer.bgcolor) + REVERSE_STYLE,
+        Style.from_color(outer.color, inner.bgcolor) + REVERSE_STYLE,
     )
 
     return (
@@ -340,6 +356,7 @@ def render_border_label(
     cells_reserved = 2 * corners_needed
 
     text_label, label_style = label
+
     if not text_label.cell_len or width <= cells_reserved:
         return
 
@@ -363,9 +380,9 @@ def render_border_label(
     elif label_style_location == 1:
         base_style = outer
     elif label_style_location == 2:
-        base_style = Style.from_color(outer.bgcolor, inner.color)
+        base_style = Style.from_color(inner.color, outer.bgcolor) + REVERSE_STYLE
     elif label_style_location == 3:
-        base_style = Style.from_color(inner.bgcolor, outer.color)
+        base_style = Style.from_color(outer.color, inner.bgcolor) + REVERSE_STYLE
     else:
         assert False
 

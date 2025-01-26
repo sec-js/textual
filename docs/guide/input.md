@@ -96,7 +96,7 @@ The following example shows how focus works in practice.
 
 === "key03.tcss"
 
-    ```python title="key03.tcss" hl_lines="15-17"
+    ```css title="key03.tcss" hl_lines="15-17"
     --8<-- "docs/examples/guide/input/key03.tcss"
     ```
 
@@ -105,7 +105,7 @@ The following example shows how focus works in practice.
     ```{.textual path="docs/examples/guide/input/key03.py", press="H,e,l,l,o,tab,W,o,r,l,d,!"}
     ```
 
-The app splits the screen in to quarters, with a `RichLog` widget in each quarter. If you click any of the text logs, you should see that it is highlighted to show that the widget has focus. Key events will be sent to the focused widget only.
+The app splits the screen into quarters, with a `RichLog` widget in each quarter. If you click any of the text logs, you should see that it is highlighted to show that the widget has focus. Key events will be sent to the focused widget only.
 
 !!! tip
 
@@ -113,9 +113,16 @@ The app splits the screen in to quarters, with a `RichLog` widget in each quarte
 
 You can move focus by pressing the ++tab++ key to focus the next widget. Pressing ++shift+tab++ moves the focus in the opposite direction.
 
+### Focusable widgets
+
+Each widget has a boolean `can_focus` attribute which determines if it is capable of receiving focus.
+Note that `can_focus=True` does not mean the widget will _always_ be focusable.
+For example, a disabled widget cannot receive focus even if `can_focus` is `True`.
+
 ### Controlling focus
 
 Textual will handle keyboard focus automatically, but you can tell Textual to focus a widget by calling the widget's [focus()][textual.widget.Widget.focus] method.
+By default, Textual will focus the first focusable widget when the app starts.
 
 ### Focus events
 
@@ -138,7 +145,7 @@ The following example binds the keys ++r++, ++g++, and ++b++ to an action which 
 
 === "binding01.tcss"
 
-    ```python title="binding01.tcss"
+    ```css title="binding01.tcss"
     --8<-- "docs/examples/guide/input/binding01.tcss"
     ```
 
@@ -154,6 +161,9 @@ Note how the footer displays bindings and makes them clickable.
     Multiple keys can be bound to a single action by comma-separating them.
     For example, `("r,t", "add_bar('red')", "Add Red")` means both ++r++ and ++t++ are bound to `add_bar('red')`.
 
+When you press a key, Textual will first check for a matching binding in the `BINDINGS` list of the currently focused widget.
+If no match is found, it will search upwards through the DOM all the way up to the `App` looking for a match.
+
 ### Binding class
 
 The tuple of three strings may be enough for simple bindings, but you can also replace the tuple with a [Binding][textual.binding.Binding] instance which exposes a few more options.
@@ -162,13 +172,11 @@ The tuple of three strings may be enough for simple bindings, but you can also r
 
 Individual bindings may be marked as a *priority*, which means they will be checked prior to the bindings of the focused widget. This feature is often used to create hot-keys on the app or screen. Such bindings can not be disabled by binding the same key on a widget.
 
-You can create priority key bindings by setting `priority=True` on the Binding object. Textual uses this feature to add a default binding for ++ctrl+c++ so there is always a way to exit the app. Here's the bindings from the App base class. Note the first binding is set as a priority:
+You can create priority key bindings by setting `priority=True` on the Binding object. Textual uses this feature to add a default binding for ++ctrl+q++ so there is always a way to exit the app. Here's the `BINDINGS` from the App base class. Note the quit binding is set as a priority:
 
 ```python
     BINDINGS = [
-        Binding("ctrl+c", "quit", "Quit", show=False, priority=True),
-        Binding("tab", "focus_next", "Focus Next", show=False),
-        Binding("shift+tab", "focus_previous", "Focus Previous", show=False),
+        Binding("ctrl+q", "quit", "Quit", show=False, priority=True)
     ]
 ```
 
@@ -202,13 +210,13 @@ The following example shows mouse movements being used to _attach_ a widget to t
 
 === "mouse01.py"
 
-    ```python title="mouse01.py" hl_lines="11-13"
+    ```python title="mouse01.py" hl_lines="17-19"
     --8<-- "docs/examples/guide/input/mouse01.py"
     ```
 
 === "mouse01.tcss"
 
-    ```python title="mouse01.tcss"
+    ```css title="mouse01.tcss"
     --8<-- "docs/examples/guide/input/mouse01.tcss"
     ```
 
@@ -232,6 +240,9 @@ Textual will send a [MouseCapture](../events/mouse_capture.md) event when the mo
 
 Textual will send a [Enter](../events/enter.md) event to a widget when the mouse cursor first moves over it, and a [Leave](../events/leave.md) event when the cursor moves off a widget.
 
+Both `Enter` and `Leave` _bubble_, so a widget may receive these events from a child widget.
+You can check the initial widget these events were sent to by comparing the `node` attribute against `self` in the message handler.
+
 ### Click events
 
 There are three events associated with clicking a button on your mouse. When the button is initially pressed, Textual sends a [MouseDown](../events/mouse_down.md) event, followed by [MouseUp](../events/mouse_up.md) when the button is released. Textual then sends a final [Click](../events/click.md) event.
@@ -244,4 +255,4 @@ Most mice have a scroll wheel which you can use to scroll the window underneath 
 
 !!! information
 
-    Terminal emulators will typically convert trackpad gestures in to scroll events.
+    Terminal emulators will typically convert trackpad gestures into scroll events.

@@ -9,7 +9,7 @@ The `link-style-hover` style sets the text style for the link text when the mous
 ## Syntax
 
 --8<-- "docs/snippets/syntax_block_start.md"
-link-style-hover: <a href="../../css_types/text_style">&lt;text-style&gt;</a>;
+link-style-hover: <a href="../../../css_types/text_style">&lt;text-style&gt;</a>;
 --8<-- "docs/snippets/syntax_block_end.md"
 
 `link-style-hover` applies its [`<text-style>`](../../css_types/text_style.md) to the text of Textual action links when the mouse pointer is over them.
@@ -20,7 +20,7 @@ If not provided, a Textual action link will have `link-style-hover` set to `bold
 
 ## Example
 
-The example below shows some links that have their colour changed when the mouse moves over it.
+The example below shows some links that have their color changed when the mouse moves over it.
 It also shows that `link-style-hover` does not affect hyperlinks.
 
 === "Output"
@@ -50,7 +50,7 @@ It also shows that `link-style-hover` does not affect hyperlinks.
 
 === "link_style_hover.tcss"
 
-    ```sass hl_lines="2 6 10"
+    ```css hl_lines="2 6 10"
     --8<-- "docs/examples/styles/link_style_hover.tcss"
     ```
 
@@ -59,7 +59,7 @@ It also shows that `link-style-hover` does not affect hyperlinks.
 
 ## CSS
 
-```sass
+```css
 link-style-hover: bold;
 link-style-hover: bold italic reverse;
 ```
@@ -73,7 +73,7 @@ widget.styles.link_style_hover = "bold italic reverse"
 
 ## See also
 
- - [`link-background-hover](./link_background_hover.md) to set the background color of link text when the mouse pointer is over it.
- - [`link-color-hover](./link_color_hover.md) to set the color of link text when the mouse pointer is over it.
+ - [`link-background-hover`](./link_background_hover.md) to set the background color of link text when the mouse pointer is over it.
+ - [`link-color-hover`](./link_color_hover.md) to set the color of link text when the mouse pointer is over it.
  - [`link-style`](./link_style.md) to set the style of link text.
  - [`text-style`](../text_style.md) to set the style of text in a widget.

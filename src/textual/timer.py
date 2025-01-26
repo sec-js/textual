@@ -1,5 +1,6 @@
 """
 
+Contains the `Timer` class.
 Timer objects are created by [set_interval][textual.message_pump.MessagePump.set_interval] or
     [set_timer][textual.message_pump.MessagePump.set_timer].
 """
@@ -7,23 +8,23 @@ Timer objects are created by [set_interval][textual.message_pump.MessagePump.set
 from __future__ import annotations
 
 import weakref
-from asyncio import CancelledError, Event, Task, create_task
-from typing import Any, Awaitable, Callable, Union
+from asyncio import CancelledError, Event, Task, create_task, gather
+from typing import Any, Awaitable, Callable, Iterable, Union
 
 from rich.repr import Result, rich_repr
 
-from . import _time, events
-from ._callback import invoke
-from ._context import active_app
-from ._time import sleep
-from ._types import MessageTarget
+from textual import _time, events
+from textual._callback import invoke
+from textual._context import active_app
+from textual._time import sleep
+from textual._types import MessageTarget
 
 TimerCallback = Union[Callable[[], Awaitable[Any]], Callable[[], Any]]
 """Type of valid callbacks to be used with timers."""
 
 
 class EventTargetGone(Exception):
-    pass
+    """Raised if the timer event target has been deleted prior to the timer event being sent."""
 
 
 @rich_repr
@@ -85,10 +86,37 @@ class Timer:
 
     def stop(self) -> None:
         """Stop the timer."""
-        if self._task is not None:
-            self._active.set()
-            self._task.cancel()
-            self._task = None
+        if self._task is None:
+            return
+
+        self._active.set()
+        self._task.cancel()
+        self._task = None
+
+    @classmethod
+    async def _stop_all(cls, timers: Iterable[Timer]) -> None:
+        """Stop a number of timers, and await their completion.
+
+        Args:
+            timers: A number of timers.
+        """
+
+        async def stop_timer(timer: Timer) -> None:
+            """Stop a timer and wait for it to finish.
+
+            Args:
+                timer: A Timer instance.
+            """
+            if timer._task is not None:
+                timer._active.set()
+                timer._task.cancel()
+                try:
+                    await timer._task
+                except CancelledError:
+                    pass
+                timer._task = None
+
+        await gather(*[stop_timer(timer) for timer in list(timers)])
 
     def pause(self) -> None:
         """Pause the timer.
@@ -125,7 +153,7 @@ class Timer:
             next_timer = start + ((count + 1) * _interval)
             now = _time.get_time()
             if self._skip and next_timer < now:
-                count += 1
+                count = int((now - start) / _interval + 1)
                 continue
             now = _time.get_time()
             wait_time = max(0, next_timer - now)
@@ -144,6 +172,11 @@ class Timer:
 
     async def _tick(self, *, next_timer: float, count: int) -> None:
         """Triggers the Timer's action: either call its callback, or sends an event to its target"""
+
+        app = active_app.get()
+        if app._exit:
+            return
+
         if self._callback is not None:
             try:
                 await invoke(self._callback)
@@ -152,7 +185,6 @@ class Timer:
                 # Re-raise CancelledErrors that would be caught by the following exception block in Python 3.7
                 raise
             except Exception as error:
-                app = active_app.get()
                 app._handle_exception(error)
         else:
             event = events.Timer(

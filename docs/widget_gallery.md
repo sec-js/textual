@@ -34,6 +34,7 @@ A classic checkbox control.
 ```{.textual path="docs/examples/widgets/checkbox.py"}
 ```
 
+
 ## Collapsible
 
 Content that may be toggled on and off by clicking a title.
@@ -90,6 +91,7 @@ A footer to display and interact with key bindings.
 ```
 
 
+
 ## Header
 
 A header to display the app's title and subtitle.
@@ -117,6 +119,13 @@ A control to enter text.
 A simple text label.
 
 [Label reference](./widgets/label.md){ .md-button .md-button--primary }
+
+
+## Link
+
+A clickable link that opens a URL.
+
+[Link reference](./widgets/link.md){ .md-button .md-button--primary }
 
 
 ## ListView
@@ -164,6 +173,16 @@ Display a markdown document.
 
 
 ```{.textual path="docs/examples/widgets/markdown.py"}
+```
+
+## MaskedInput
+
+A control to enter input according to a template mask.
+
+[MaskedInput reference](./widgets/masked_input.md){ .md-button .md-button--primary }
+
+
+```{.textual path="docs/examples/widgets/masked_input.py"}
 ```
 
 ## OptionList

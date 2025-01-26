@@ -11,6 +11,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Collection,
+    Literal,
     NamedTuple,
     Tuple,
     TypeVar,
@@ -33,8 +34,13 @@ T = TypeVar("T", int, float)
 
 
 def clamp(value: T, minimum: T, maximum: T) -> T:
-    """Adjust a value so it is not less than a minimum and not greater
-    than a maximum value.
+    """Restrict a value to a given range.
+
+    If `value` is less than the minimum, return the minimum.
+    If `value` is greater than the maximum, return the maximum.
+    Otherwise, return `value`.
+
+    The `minimum` and `maximum` arguments values may be given in reverse order.
 
     Args:
         value: A value.
@@ -45,12 +51,18 @@ def clamp(value: T, minimum: T, maximum: T) -> T:
         New value that is not less than the minimum or greater than the maximum.
     """
     if minimum > maximum:
-        maximum, minimum = minimum, maximum
-    if value < minimum:
-        return minimum
-    elif value > maximum:
-        return maximum
+        # It is common for the min and max to be in non-intuitive order.
+        # Rather than force the caller to get it right, it is simpler to handle it here.
+        if value < maximum:
+            return maximum
+        if value > minimum:
+            return minimum
+        return value
     else:
+        if value < minimum:
+            return minimum
+        if value > maximum:
+            return maximum
         return value
 
 
@@ -93,6 +105,12 @@ class Offset(NamedTuple):
         x, y = self
         return Offset(0 if x < 0 else x, 0 if y < 0 else y)
 
+    @property
+    def transpose(self) -> tuple[int, int]:
+        """A tuple of x and y, in reverse order, i.e. (y, x)."""
+        x, y = self
+        return y, x
+
     def __bool__(self) -> bool:
         return self != (0, 0)
 
@@ -114,6 +132,9 @@ class Offset(NamedTuple):
         if isinstance(other, (float, int)):
             x, y = self
             return Offset(int(x * other), int(y * other))
+        if isinstance(other, tuple):
+            x, y = self
+            return Offset(int(x * other[0]), int(y * other[1]))
         return NotImplemented
 
     def __neg__(self) -> Offset:
@@ -150,6 +171,19 @@ class Offset(NamedTuple):
         x2, y2 = other
         distance: float = ((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)) ** 0.5
         return distance
+
+    def clamp(self, width: int, height: int) -> Offset:
+        """Clamp the offset to fit within a rectangle of width x height.
+
+        Args:
+            width: Width to clamp.
+            height: Height to clamp.
+
+        Returns:
+            A new offset.
+        """
+        x, y = self
+        return Offset(clamp(x, 0, width - 1), clamp(y, 0, height - 1))
 
 
 class Size(NamedTuple):
@@ -193,6 +227,28 @@ class Size(NamedTuple):
     def line_range(self) -> range:
         """A range object that covers values between 0 and `height`."""
         return range(self.height)
+
+    def with_width(self, width: int) -> Size:
+        """Get a new Size with just the width changed.
+
+        Args:
+            width: New width.
+
+        Returns:
+            New Size instance.
+        """
+        return Size(width, self.height)
+
+    def with_height(self, height: int) -> Size:
+        """Get a new Size with just the height changed.
+
+        Args:
+            height: New height.
+
+        Returns:
+            New Size instance.
+        """
+        return Size(self.width, height)
 
     def __add__(self, other: object) -> Size:
         if isinstance(other, tuple):
@@ -245,6 +301,17 @@ class Size(NamedTuple):
             )
         width, height = self
         return width > x >= 0 and height > y >= 0
+
+    def clamp_offset(self, offset: Offset) -> Offset:
+        """Clamp an offset to fit within the width x height.
+
+        Args:
+            offset: An offset.
+
+        Returns:
+            A new offset that will fit inside the dimensions defined in the Size.
+        """
+        return offset.clamp(self.width, self.height)
 
 
 class Region(NamedTuple):
@@ -347,7 +414,7 @@ class Region(NamedTuple):
         """Calculate the smallest offset required to translate a window so that it contains
         another region.
 
-        This method is used to calculate the required offset to scroll something in to view.
+        This method is used to calculate the required offset to scroll something into view.
 
         Args:
             window_region: The window region.
@@ -372,7 +439,7 @@ class Region(NamedTuple):
             and (window_right > right >= window_left)
         ):
             # The region does not fit
-            # The window needs to scroll on the X axis to bring region in to view
+            # The window needs to scroll on the X axis to bring region into view
             delta_x = min(
                 left - window_left,
                 left - (window_right - region.width),
@@ -386,7 +453,7 @@ class Region(NamedTuple):
             (window_bottom > top_ >= window_top)
             and (window_bottom > bottom >= window_top)
         ):
-            # The window needs to scroll on the Y axis to bring region in to view
+            # The window needs to scroll on the Y axis to bring region into view
             delta_y = min(
                 top_ - window_top,
                 top_ - (window_bottom - region.height),
@@ -482,6 +549,12 @@ class Region(NamedTuple):
         return Offset(x + width, y + height)
 
     @property
+    def bottom_right_inclusive(self) -> Offset:
+        """Bottom right corner of the region, within its boundaries."""
+        x, y, width, height = self
+        return Offset(x + width - 1, y + height - 1)
+
+    @property
     def size(self) -> Size:
         """Get the size of the region."""
         return Size(*self[2:])
@@ -526,6 +599,22 @@ class Region(NamedTuple):
             return Region(x - ox, y - oy, width, height)
         return NotImplemented
 
+    def get_spacing_between(self, region: Region) -> Spacing:
+        """Get spacing between two regions.
+
+        Args:
+            region: Another region.
+
+        Returns:
+            Spacing that if subtracted from `self` produces `region`.
+        """
+        return Spacing(
+            region.y - self.y,
+            self.right - region.right,
+            self.bottom - region.bottom,
+            region.x - self.x,
+        )
+
     def at_offset(self, offset: tuple[int, int]) -> Region:
         """Get a new Region with the same size at a given offset.
 
@@ -569,19 +658,6 @@ class Region(NamedTuple):
             width + expand_width * 2,
             height + expand_height * 2,
         )
-
-    def clip_size(self, size: tuple[int, int]) -> Region:
-        """Clip the size to fit within minimum values.
-
-        Args:
-            size: Maximum width and height.
-
-        Returns:
-            No region, not bigger than size.
-        """
-        x, y, width, height = self
-        max_width, max_height = size
-        return Region(x, y, min(width, max_width), min(height, max_height))
 
     @lru_cache(maxsize=1024)
     def overlaps(self, other: Region) -> bool:
@@ -656,7 +732,7 @@ class Region(NamedTuple):
             offset: Offset to add to region.
 
         Returns:
-            A new region shifted by (x, y)
+            A new region shifted by (x, y).
         """
 
         self_x, self_y, width, height = self
@@ -782,7 +858,7 @@ class Region(NamedTuple):
 
     @lru_cache(maxsize=1024)
     def split(self, cut_x: int, cut_y: int) -> tuple[Region, Region, Region, Region]:
-        """Split a region in to 4 from given x and y offsets (cuts).
+        """Split a region into 4 from given x and y offsets (cuts).
 
         ```
                    cut_x ↓
@@ -822,7 +898,7 @@ class Region(NamedTuple):
 
     @lru_cache(maxsize=1024)
     def split_vertical(self, cut: int) -> tuple[Region, Region]:
-        """Split a region in to two, from a given x offset.
+        """Split a region into two, from a given x offset.
 
         ```
                  cut ↓
@@ -851,7 +927,7 @@ class Region(NamedTuple):
 
     @lru_cache(maxsize=1024)
     def split_horizontal(self, cut: int) -> tuple[Region, Region]:
-        """Split a region in to two, from a given y offset.
+        """Split a region into two, from a given y offset.
 
         ```
                     ┌─────────┐
@@ -926,6 +1002,11 @@ class Region(NamedTuple):
         A positive value will move the region right or down, a negative value will move
         the region left or up. A value of `0` will leave that axis unmodified.
 
+        If a margin is provided, it will add space between the resulting region.
+
+        Note that if margin is specified it *overlaps*, so the space will be the maximum
+        of two edges, and not the total.
+
         ```
         ╔══════════╗    │
         ║          ║
@@ -933,13 +1014,11 @@ class Region(NamedTuple):
         ║          ║
         ╚══════════╝    │
 
-        ─ ─ ─ ─ ─ ─ ─ ─ ┼ ─ ─ ─ ─ ─ ─ ─ ─
-
-                        │    ┌──────────┐
-                             │          │
-                        │    │  Result  │
-                             │          │
-                        │    └──────────┘
+        ─ ─ ─ ─ ─ ─ ─ ─ ┌──────────┐
+                        │          │
+                        │  Result  │
+                        │          │
+                        └──────────┘
         ```
 
         Args:
@@ -953,14 +1032,92 @@ class Region(NamedTuple):
         inflect_margin = NULL_SPACING if margin is None else margin
         x, y, width, height = self
         if x_axis:
-            x += (width + inflect_margin.width) * x_axis
+            x += (width + inflect_margin.max_width) * x_axis
         if y_axis:
-            y += (height + inflect_margin.height) * y_axis
+            y += (height + inflect_margin.max_height) * y_axis
         return Region(x, y, width, height)
+
+    def constrain(
+        self,
+        constrain_x: Literal["none", "inside", "inflect"],
+        constrain_y: Literal["none", "inside", "inflect"],
+        margin: Spacing,
+        container: Region,
+    ) -> Region:
+        """Constrain a region to fit within a container, using different methods per axis.
+
+        Args:
+            constrain_x: Constrain method for the X-axis.
+            constrain_y: Constrain method for the Y-axis.
+            margin: Margin to maintain around region.
+            container: Container to constrain to.
+
+        Returns:
+            New widget, that fits inside the container (if possible).
+        """
+        margin_region = self.grow(margin)
+        region = self
+
+        def compare_span(
+            span_start: int, span_end: int, container_start: int, container_end: int
+        ) -> int:
+            """Compare a span with a container
+
+            Args:
+                span_start: Start of the span.
+                span_end: end of the span.
+                container_start: Start of the container.
+                container_end: End of the container.
+
+            Returns:
+                0 if the span fits, -1 if it is less that the container, otherwise +1
+            """
+            if span_start >= container_start and span_end <= container_end:
+                return 0
+            if span_start < container_start:
+                return -1
+            return +1
+
+        # Apply any inflected constraints
+        if constrain_x == "inflect" or constrain_y == "inflect":
+            region = region.inflect(
+                (
+                    -compare_span(
+                        margin_region.x,
+                        margin_region.right,
+                        container.x,
+                        container.right,
+                    )
+                    if constrain_x == "inflect"
+                    else 0
+                ),
+                (
+                    -compare_span(
+                        margin_region.y,
+                        margin_region.bottom,
+                        container.y,
+                        container.bottom,
+                    )
+                    if constrain_y == "inflect"
+                    else 0
+                ),
+                margin,
+            )
+
+        # Apply translate inside constrains
+        # Note this is also applied, if a previous inflect constrained has been applied
+        # This is so that the origin is always inside the container
+        region = region.translate_inside(
+            container.shrink(margin),
+            constrain_x != "none",
+            constrain_y != "none",
+        )
+
+        return region
 
 
 class Spacing(NamedTuple):
-    """The spacing around a renderable, such as padding and border.
+    """Stores spacing around a widget, such as padding and border.
 
     Spacing is defined by four integers for the space at the top, right, bottom, and left of a region.
 
@@ -1011,6 +1168,18 @@ class Spacing(NamedTuple):
     def height(self) -> int:
         """Total space in the y axis."""
         return self.top + self.bottom
+
+    @property
+    def max_width(self) -> int:
+        """The space between regions in the X direction if margins overlap, i.e. `max(self.left, self.right)`."""
+        _top, right, _bottom, left = self
+        return left if left > right else right
+
+    @property
+    def max_height(self) -> int:
+        """The space between regions in the Y direction if margins overlap, i.e. `max(self.top, self.bottom)`."""
+        top, _right, bottom, _left = self
+        return top if top > bottom else bottom
 
     @property
     def top_left(self) -> tuple[int, int]:

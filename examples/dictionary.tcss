@@ -2,7 +2,7 @@ Screen {
     background: $panel;
 }
 
-Input {
+Input#dictionary-search {
     dock: top;
     margin: 1 0;
 }
@@ -10,17 +10,16 @@ Input {
 #results {
     width: 100%;
     height: auto;
-
 }
 
 #results-container {
-    background: $background 50%;
+    background: $surface;
     margin: 0 0 1 0;
     height: 100%;
     overflow: hidden auto;
-    border: tall $background;
+    border: tall transparent;
 }
 
 #results-container:focus {
-    border: tall $accent;
+    border: tall $border;
 }

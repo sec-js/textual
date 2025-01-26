@@ -4,14 +4,15 @@ Tools for processing Segments, or lists of Segments.
 
 from __future__ import annotations
 
+import re
 from typing import Iterable
 
 from rich.segment import Segment
 from rich.style import Style
 
-from ._cells import cell_len
-from .css.types import AlignHorizontal, AlignVertical
-from .geometry import Size
+from textual._cells import cell_len
+from textual.css.types import AlignHorizontal, AlignVertical
+from textual.geometry import Size
 
 
 class NoCellPositionForIndex(Exception):
@@ -230,8 +231,6 @@ def align_lines(
     if top_blank_lines:
         yield from blank_lines(top_blank_lines)
 
-    horizontal_excess_space = max(0, width - shape_width)
-
     if horizontal == "left":
         for cell_length, line in zip(line_lengths, lines):
             if cell_length == width:
@@ -240,7 +239,7 @@ def align_lines(
                 yield line_pad(line, 0, width - cell_length, style)
 
     elif horizontal == "center":
-        left_space = horizontal_excess_space // 2
+        left_space = max(0, width - shape_width) // 2
         for cell_length, line in zip(line_lengths, lines):
             if cell_length == width:
                 yield line
@@ -258,3 +257,36 @@ def align_lines(
 
     if bottom_blank_lines:
         yield from blank_lines(bottom_blank_lines)
+
+
+_re_spaces = re.compile(r"(\s+|\S+)")
+
+
+def apply_hatch(
+    segments: Iterable[Segment],
+    character: str,
+    hatch_style: Style,
+    _split=_re_spaces.split,
+) -> Iterable[Segment]:
+    """Replace run of spaces with another character + style.
+
+    Args:
+        segments: Segments to process.
+        character: Character to replace spaces.
+        hatch_style: Style of replacement characters.
+
+    Yields:
+        Segments.
+    """
+    _Segment = Segment
+    for segment in segments:
+        if " " not in segment.text:
+            yield segment
+        else:
+            text, style, _ = segment
+            for token in _split(text):
+                if token:
+                    if token.isspace():
+                        yield _Segment(character * len(token), hatch_style)
+                    else:
+                        yield _Segment(token, style)

@@ -78,19 +78,135 @@ Build sophisticated user interfaces with a simple Python API. Run your apps in t
 </div>
 
 
+---
 
-```{.textual path="examples/calculator.py" columns=100 lines=41 press="3,.,1,4,5,9,2,wait:400"}
-```
+# Live Demo
 
-```{.textual path="examples/pride.py"}
-```
+The official [Textual demo](https://github.com/textualize/textual-demo).
 
-```{.textual path="docs/examples/tutorial/stopwatch.py" columns="100" lines="30" press="d,tab,enter"}
-```
+<div class="textual-web-demo" data-app="demo"></div>
 
 
-```{.textual path="docs/examples/guide/layout/combining_layouts.py" columns="100", lines="30"}
-```
+---
 
-```{.textual path="docs/examples/app/widgets01.py"}
-```
+# Built with Textual
+
+Textual has enabled an ecosystem of applications and tools for developers and non-developers alike.
+
+Here are a few examples.
+
+
+## Posting
+
+The API client that lives in your terminal.
+Posting is a beautiful open-source terminal app for developing and testing APIs.
+
+[Posting Website](https://posting.sh/)
+
+[Posting Github Repository](https://github.com/darrenburns/posting)
+
+<div>
+<a href="https://posting.sh">
+--8<-- "docs/images/screenshots/posting.svg"
+</a>
+</div>
+
+---
+
+## Toolong
+
+A terminal application to view, tail, merge, and search log files (plus JSONL).
+
+[Toolong Github Repository](https://github.com/textualize/toolong)
+
+<div>
+<a href="https://github.com/Textualize/toolong">
+--8<-- "docs/images/screenshots/toolong.svg"
+</a>
+</div>
+
+---
+
+
+## Memray
+
+Memray is a memory profiler for Python, built by Bloomberg.
+
+[Memray Github Repository](https://github.com/bloomberg/memray)
+
+<div>
+<a href="https://github.com/bloomberg/memray">
+--8<-- "docs/images/screenshots/memray.svg"
+</a>
+</div>
+
+---
+
+## Dolphie
+
+Your single pane of glass for real-time analytics into MySQL/MariaDB & ProxySQL
+
+[Dolphie Github Repository](https://github.com/charles-001/dolphie)
+
+
+<div>
+<a href="https://github.com/charles-001/dolphie">
+--8<-- "docs/images/screenshots/dolphie.svg"
+</a>
+</div>
+
+
+---
+
+## Harlequin
+
+An easy, fast, and beautiful database client for the terminal.
+
+[Harlequin website](https://harlequin.sh/)
+
+<div>
+<a href="https://harlequin.sh">
+--8<-- "docs/images/screenshots/harlequin.svg"
+</a>
+</div>
+
+
+
+---
+
+# Examples
+
+The following examples are taken from the [examples directory](https://github.com/Textualize/textual/tree/main/examples).
+
+Click the tabs to see the code behind the example. 
+
+=== "Pride example"
+
+    ```{.textual path="examples/pride.py"}
+    ```
+
+=== "pride.py"
+
+    ```py
+    --8<-- "examples/pride.py"
+    ```
+
+
+---
+
+=== "Calculator example"
+
+    ```{.textual path="examples/calculator.py" columns=100 lines=41 press="6,.,2,8,3,1,8,5,3,0,7,1,wait:400"}
+    ```
+
+=== "calculator.py"
+
+    ```python
+    --8<-- "examples/calculator.py"
+    ```
+
+=== "calculator.tcss"
+
+    ```css
+    --8<-- "examples/calculator.tcss"
+    ```

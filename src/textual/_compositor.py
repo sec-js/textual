@@ -1,6 +1,6 @@
 """
 
-The compositor handles combining widgets in to a single screen (i.e. compositing).
+The compositor handles combining widgets into a single screen (i.e. compositing).
 
 It also stores the results of that process, so that Textual knows the widgets on
 the screen and their locations. The compositor uses this information to answer
@@ -29,19 +29,19 @@ from rich.control import Control
 from rich.segment import Segment
 from rich.style import Style
 
-from . import errors
-from ._cells import cell_len
-from ._context import visible_screen_stack
-from ._loop import loop_last
-from .geometry import NULL_OFFSET, NULL_SPACING, Offset, Region, Size, Spacing
-from .strip import Strip, StripRenderable
+from textual import errors
+from textual._cells import cell_len
+from textual._context import visible_screen_stack
+from textual._loop import loop_last
+from textual.geometry import NULL_SPACING, Offset, Region, Size, Spacing
+from textual.map_geometry import MapGeometry
+from textual.strip import Strip, StripRenderable
 
 if TYPE_CHECKING:
     from typing_extensions import TypeAlias
 
-    from .css.styles import RenderStyles
-    from .screen import Screen
-    from .widget import Widget
+    from textual.screen import Screen
+    from textual.widget import Widget
 
 
 class ReflowResult(NamedTuple):
@@ -50,35 +50,6 @@ class ReflowResult(NamedTuple):
     hidden: set[Widget]  # Widgets that are hidden
     shown: set[Widget]  # Widgets that are shown
     resized: set[Widget]  # Widgets that have been resized
-
-
-class MapGeometry(NamedTuple):
-    """Defines the absolute location of a Widget."""
-
-    region: Region
-    """The (screen) [region][textual.geometry.Region] occupied by the widget."""
-    order: tuple[tuple[int, int, int], ...]
-    """Tuple of tuples defining the painting order of the widget.
-
-    Each successive triple represents painting order information with regards to
-    ancestors in the DOM hierarchy and the last triple provides painting order
-    information for this specific widget.
-    """
-    clip: Region
-    """A [region][textual.geometry.Region] to clip the widget by (if a Widget is within a container)."""
-    virtual_size: Size
-    """The virtual [size][textual.geometry.Size] (scrollable area) of a widget if it is a container."""
-    container_size: Size
-    """The container [size][textual.geometry.Size] (area not occupied by scrollbars)."""
-    virtual_region: Region
-    """The [region][textual.geometry.Region] relative to the container (but not necessarily visible)."""
-    dock_gutter: Spacing
-    """Space from the container reserved by docked widgets."""
-
-    @property
-    def visible_region(self) -> Region:
-        """The Widget region after clipping."""
-        return self.clip.intersection(self.region)
 
 
 # Maps a widget on to its geometry (information that describes its position in the composition)
@@ -142,6 +113,51 @@ class LayoutUpdate(CompositorUpdate):
 
     def __rich_repr__(self) -> rich.repr.Result:
         yield self.region
+
+
+@rich.repr.auto(angular=True)
+class InlineUpdate(CompositorUpdate):
+    """A renderable to write an inline update."""
+
+    def __init__(self, strips: list[Strip], clear: bool = False) -> None:
+        self.strips = strips
+        self.clear = clear
+
+    def __rich_console__(
+        self, console: Console, options: ConsoleOptions
+    ) -> RenderResult:
+        new_line = Segment.line()
+        for last, line in loop_last(self.strips):
+            yield from line
+            if not last:
+                yield new_line
+
+    def render_segments(self, console: Console) -> str:
+        """Render the update to raw data, suitable for writing to terminal.
+
+        Args:
+            console: Console instance.
+
+        Returns:
+            Raw data with escape sequences.
+        """
+        sequences: list[str] = []
+        append = sequences.append
+        for last, strip in loop_last(self.strips):
+            append(strip.render(console))
+            if not last:
+                append("\n")
+        if self.clear:
+            if len(self.strips) > 1:
+                append("\n")
+            append("\x1b[J")  # Clear down
+        if len(self.strips) > 1:
+            back_lines = len(self.strips) if self.clear else len(self.strips) - 1
+            append(f"\x1b[{back_lines}A\r")  # Move cursor back to original position
+        else:
+            append("\r")
+        append("\x1b[6n")  # Query new cursor position
+        return "".join(sequences)
 
 
 @rich.repr.auto(angular=True)
@@ -294,6 +310,15 @@ class Compositor:
         # Mapping of line numbers on to lists of widget and regions
         self._layers_visible: list[list[tuple[Widget, Region, Region]]] | None = None
 
+    def clear(self) -> None:
+        """Remove all references to widgets (used when the screen closes)."""
+        self._full_map.clear()
+        self._visible_map = None
+        self._layers = None
+        self.widgets.clear()
+        self._visible_widgets = None
+        self._layers_visible = None
+
     @classmethod
     def _regions_to_spans(
         cls, regions: Iterable[Region]
@@ -364,6 +389,7 @@ class Compositor:
 
         # Newly visible widgets
         shown_widgets = new_widgets - old_widgets
+
         # Newly hidden widgets
         hidden_widgets = self.widgets - widgets
 
@@ -395,7 +421,6 @@ class Compositor:
             for widget, (region, *_) in changes
             if (widget in common_widgets and old_map[widget].region[2:] != region[2:])
         }
-
         return ReflowResult(
             hidden=hidden_widgets,
             shown=shown_widgets,
@@ -459,6 +484,7 @@ class Compositor:
         if self._full_map_invalidated:
             self._full_map_invalidated = False
             map, _widgets = self._arrange_root(self.root, self.size, visible_only=False)
+            # Update any widgets which became visible in the interim
             self._full_map = map
             self._visible_widgets = None
             self._visible_map = None
@@ -495,38 +521,6 @@ class Compositor:
             }
         return self._visible_widgets
 
-    def _constrain(
-        self, styles: RenderStyles, region: Region, constrain_region: Region
-    ) -> Region:
-        """Applies constrain logic to a Region.
-
-        Args:
-            styles: The widget's styles.
-            region: The region to constrain.
-            constrain_region: The outer region.
-
-        Returns:
-            New region.
-        """
-        constrain = styles.constrain
-        if constrain == "inflect":
-            inflect_margin = styles.margin
-            margin_region = region.grow(inflect_margin)
-            region = region.inflect(
-                (-1 if margin_region.right > constrain_region.right else 0),
-                (-1 if margin_region.bottom > constrain_region.bottom else 0),
-                inflect_margin,
-            )
-            region = region.translate_inside(constrain_region, True, True)
-        elif constrain != "none":
-            # Constrain to avoid clipping
-            region = region.translate_inside(
-                constrain_region,
-                constrain in ("x", "both"),
-                constrain in ("y", "both"),
-            )
-        return region
-
     def _arrange_root(
         self, root: Widget, size: Size, visible_only: bool = True
     ) -> tuple[CompositorMap, set[Widget]]:
@@ -534,16 +528,18 @@ class Compositor:
 
         Args:
             root: Top level widget.
+            size: Size of visible area (screen).
+            visible_only: Only update visible widgets (used in scrolling).
 
         Returns:
             Compositor map and set of widgets.
         """
 
-        ORIGIN = NULL_OFFSET
-
         map: CompositorMap = {}
         widgets: set[Widget] = set()
         add_new_widget = widgets.add
+        invisible_widgets: set[Widget] = set()
+        add_new_invisible_widget = invisible_widgets.add
         layer_order: int = 0
 
         no_clip = size.region
@@ -563,7 +559,7 @@ class Compositor:
 
             Args:
                 widget: The widget to add.
-                virtual_region: The Widget region relative to it's container.
+                virtual_region: The Widget region relative to its container.
                 region: The region the widget will occupy.
                 order: Painting order information.
                 layer_order: The order of the widget in its layer.
@@ -574,21 +570,17 @@ class Compositor:
             if not widget._is_mounted:
                 return
             styles = widget.styles
-            visibility = styles.get_rule("visibility")
-            if visibility is not None:
+
+            if (visibility := styles.get_rule("visibility")) is not None:
                 visible = visibility == "visible"
 
             if visible:
                 add_new_widget(widget)
-            styles_offset = styles.offset
-            layout_offset = (
-                styles_offset.resolve(region.size, clip.size)
-                if styles_offset
-                else ORIGIN
-            )
+            else:
+                add_new_invisible_widget(widget)
 
             # Container region is minus border
-            container_region = region.shrink(styles.gutter).translate(layout_offset)
+            container_region = region.shrink(styles.gutter)
             container_size = container_region.size
 
             # Widgets with scrollbars (containers or scroll view) require additional processing
@@ -606,6 +598,7 @@ class Compositor:
                 if widget.is_container:
                     # Arrange the layout
                     arrange_result = widget._arrange(child_region.size)
+
                     arranged_widgets = arrange_result.widgets
                     widgets.update(arranged_widgets)
 
@@ -624,6 +617,11 @@ class Compositor:
                     placement_offset = container_region.offset
                     placement_scroll_offset = placement_offset - widget.scroll_offset
 
+                    placements = [
+                        placement.process_offset(size.region, placement_scroll_offset)
+                        for placement in placements
+                    ]
+
                     layers_to_index = {
                         layer_name: index
                         for index, layer_name in enumerate(widget.layers)
@@ -631,35 +629,52 @@ class Compositor:
 
                     get_layer_index = layers_to_index.get
 
+                    if widget._cover_widget is not None:
+                        map[widget._cover_widget] = _MapGeometry(
+                            region.shrink(widget.styles.gutter),
+                            order,
+                            clip,
+                            region.size,
+                            container_size,
+                            virtual_region,
+                            dock_gutter,
+                        )
+
                     # Add all the widgets
-                    for sub_region, _, sub_widget, z, fixed, overlay in reversed(
-                        placements
-                    ):
+                    for (
+                        sub_region,
+                        sub_region_offset,
+                        _,
+                        sub_widget,
+                        z,
+                        fixed,
+                        overlay,
+                        absolute,
+                    ) in reversed(placements):
                         layer_index = get_layer_index(sub_widget.layer, 0)
                         # Combine regions with children to calculate the "virtual size"
                         if fixed:
-                            widget_region = sub_region + placement_offset
+                            widget_region = (
+                                sub_region + sub_region_offset + placement_offset
+                            )
                         else:
-                            widget_region = sub_region + placement_scroll_offset
+                            widget_region = (
+                                sub_region + sub_region_offset + placement_scroll_offset
+                            )
 
                         widget_order = order + ((layer_index, z, layer_order),)
 
-                        if overlay and sub_widget.styles.constrain != "none":
-                            widget_region = self._constrain(
-                                sub_widget.styles, widget_region, no_clip
+                        if widget._cover_widget is None:
+                            add_widget(
+                                sub_widget,
+                                sub_region,
+                                widget_region,
+                                ((1, 0, 0),) if overlay else widget_order,
+                                layer_order,
+                                no_clip if overlay else sub_clip,
+                                visible,
+                                arrange_result.scroll_spacing,
                             )
-
-                        add_widget(
-                            sub_widget,
-                            sub_region,
-                            widget_region,
-                            ((1, 0, 0),) if overlay else widget_order,
-                            layer_order,
-                            no_clip if overlay else sub_clip,
-                            visible,
-                            arrange_result.scroll_spacing,
-                        )
-
                         layer_order -= 1
 
                 if visible:
@@ -682,7 +697,7 @@ class Compositor:
                             )
 
                     map[widget] = _MapGeometry(
-                        region + layout_offset,
+                        region,
                         order,
                         clip,
                         total_region.size,
@@ -693,19 +708,8 @@ class Compositor:
 
             elif visible:
                 # Add the widget to the map
-
-                widget_region = region + layout_offset
-
-                if widget._absolute_offset is not None:
-                    widget_region = widget_region.reset_offset.translate(
-                        widget._absolute_offset + widget.styles.margin.top_left
-                    )
-
-                if styles.constrain != "none":
-                    widget_region = self._constrain(styles, widget_region, no_clip)
-
-                map[widget] = _MapGeometry(
-                    widget_region,
+                map[widget._render_widget] = _MapGeometry(
+                    region,
                     order,
                     clip,
                     region.size,
@@ -725,6 +729,7 @@ class Compositor:
             True,
             NULL_SPACING,
         )
+        widgets -= invisible_widgets
         return map, widgets
 
     @property
@@ -739,7 +744,14 @@ class Compositor:
 
     @property
     def layers_visible(self) -> list[list[tuple[Widget, Region, Region]]]:
-        """Visible widgets and regions in layers order."""
+        """Visible widgets and regions in layers order.
+
+        Returns:
+            Lists visible widgets per layer. Widgets are give as a tuple of
+            (WIDGET, CROPPED_REGION, REGION). CROPPED_REGION is clipped by
+            the container.
+
+        """
 
         if self._layers_visible is None:
             layers_visible: list[list[tuple[Widget, Region, Region]]]
@@ -757,8 +769,31 @@ class Compositor:
             self._layers_visible = layers_visible
         return self._layers_visible
 
+    def __contains__(self, widget: Widget) -> bool:
+        """Check if the widget was included in the last update.
+
+        Args:
+            widget: A widget.
+
+        Returns:
+            `True` if the widget was in the last refresh, or `False` if it wasn't.
+        """
+        # Try to avoid a recalculation of full_map if possible.
+        return (
+            widget in self.widgets
+            or (self._visible_map is not None and widget in self._visible_map)
+            or widget in self.full_map
+        )
+
     def get_offset(self, widget: Widget) -> Offset:
-        """Get the offset of a widget."""
+        """Get the offset of a widget.
+
+        Args:
+            widget: Widget to query.
+
+        Returns:
+            Offset of widget.
+        """
         try:
             if self._visible_map is not None:
                 try:
@@ -809,11 +844,11 @@ class Compositor:
         """Get the Style at the given cell or Style.null()
 
         Args:
-            x: X position within the Layout
-            y: Y position within the Layout
+            x: X position within the Layout.
+            y: Y position within the Layout.
 
         Returns:
-            The Style at the cell (x, y) within the Layout
+            The Style at the cell (x, y) within the Layout.
         """
         try:
             widget, region = self.get_widget_at(x, y)
@@ -831,11 +866,74 @@ class Compositor:
         if not lines:
             return Style.null()
         end = 0
+
         for segment in lines[0]:
             end += segment.cell_length
             if x < end:
                 return segment.style or Style.null()
+
         return Style.null()
+
+    def get_widget_and_offset_at(
+        self, x: int, y: int
+    ) -> tuple[Widget | None, Offset | None]:
+        """Get the Style at the given cell, the offset within the content.
+
+        Args:
+            x: X position within the Layout.
+            y: Y position within the Layout.
+
+        Returns:
+            A tuple of the widget at (x, y) and the offset within the widget.
+        """
+        try:
+            widget, region = self.get_widget_at(x, y)
+        except errors.NoWidget:
+            return None, None
+        if widget not in self.visible_widgets:
+            return None, None
+
+        if y >= widget.content_region.bottom:
+            x, y = widget.content_region.bottom_right_inclusive
+
+        x -= region.x
+        y -= region.y
+
+        visible_screen_stack.set(widget.app._background_screens)
+        lines = widget.render_lines(Region(0, y, region.width, 1))
+
+        if not lines:
+            return widget, None
+        end = 0
+        start = 0
+
+        offset_y: int | None = None
+        offset_x = 0
+        offset_x2 = 0
+
+        for segment in lines[0]:
+            end += len(segment.text)
+            style = segment.style
+            if style is not None and style._meta is not None:
+                meta = style.meta
+                if "offset" in meta:
+                    offset_x, offset_y = style.meta["offset"]
+                    offset_x2 = offset_x + len(segment.text)
+
+                    if x < end and x >= start:
+                        if x == end - 1:
+                            segment_offset = len(segment.text)
+                        else:
+                            first, _ = segment.split_cells(x - start)
+                            segment_offset = len(first.text)
+                        return widget, (
+                            None
+                            if offset_y is None
+                            else Offset(offset_x + segment_offset, offset_y)
+                        )
+            start = end
+
+        return widget, (None if offset_y is None else Offset(offset_x2, offset_y))
 
     def find_widget(self, widget: Widget) -> MapGeometry:
         """Get information regarding the relative position of a widget in the Compositor.
@@ -935,25 +1033,46 @@ class Compositor:
 
         for widget, region, clip in widget_regions:
             if contains_region(clip, region):
-                yield region, clip, widget.render_lines(
-                    _Region(0, 0, region.width, region.height)
+                yield (
+                    region,
+                    clip,
+                    widget.render_lines(
+                        _Region(
+                            0,
+                            0,
+                            region.width,
+                            region.height,
+                        )
+                    ),
                 )
             else:
                 new_x, new_y, new_width, new_height = intersection(region, clip)
                 if new_width and new_height:
-                    yield region, clip, widget.render_lines(
-                        _Region(
-                            new_x - region.x, new_y - region.y, new_width, new_height
-                        )
+                    yield (
+                        region,
+                        clip,
+                        widget.render_lines(
+                            _Region(
+                                new_x - region.x,
+                                new_y - region.y,
+                                new_width,
+                                new_height,
+                            )
+                        ),
                     )
 
     def render_update(
-        self, full: bool = False, screen_stack: list[Screen] | None = None
+        self,
+        full: bool = False,
+        screen_stack: list[Screen] | None = None,
+        simplify: bool = False,
     ) -> RenderableType | None:
         """Render an update renderable.
 
         Args:
-            full: Enable full update, or `False` for a partial update.
+            full: Perform a full update if `True`, otherwise a partial update.
+            screen_stack: Screen stack list. Defaults to None.
+            simplify: Simplify segments.
 
         Returns:
             A renderable for the update, or `None` if no update was required.
@@ -962,12 +1081,35 @@ class Compositor:
         visible_screen_stack.set([] if screen_stack is None else screen_stack)
         screen_region = self.size.region
         if full or screen_region in self._dirty_regions:
-            return self.render_full_update()
+            return self.render_full_update(simplify=simplify)
         else:
             return self.render_partial_update()
 
-    def render_full_update(self) -> LayoutUpdate:
+    def render_inline(
+        self,
+        size: Size,
+        screen_stack: list[Screen] | None = None,
+        clear: bool = False,
+    ) -> RenderableType:
+        """Render an inline update.
+
+        Args:
+            size: Inline size.
+            screen_stack: Screen stack list. Defaults to None.
+            clear: Also clear below the inline update (set when size decreases).
+
+        Returns:
+            A renderable.
+        """
+        visible_screen_stack.set([] if screen_stack is None else screen_stack)
+        strips = self.render_strips(size)
+        return InlineUpdate(strips, clear=clear)
+
+    def render_full_update(self, simplify: bool = False) -> LayoutUpdate:
         """Render a full update.
+
+        Args:
+            simplify: Simplify the segments (combine contiguous segments).
 
         Returns:
             A LayoutUpdate renderable.
@@ -976,7 +1118,13 @@ class Compositor:
         self._dirty_regions.clear()
         crop = screen_region
         chops = self._render_chops(crop, lambda y: True)
-        render_strips = [Strip.join(chop.values()) for chop in chops]
+        if simplify:
+            render_strips = [
+                Strip.join(chop.values()).simplify().discard_meta() for chop in chops
+            ]
+        else:
+            render_strips = [Strip.join(chop.values()) for chop in chops]
+
         return LayoutUpdate(render_strips, screen_region)
 
     def render_partial_update(self) -> ChopsUpdate | None:
@@ -999,14 +1147,19 @@ class Compositor:
         chop_ends = [cut_set[1:] for cut_set in self.cuts]
         return ChopsUpdate(chops, spans, chop_ends)
 
-    def render_strips(self) -> list[Strip]:
+    def render_strips(self, size: Size | None = None) -> list[Strip]:
         """Render to a list of strips.
+
+        Args:
+            size: Size of render.
 
         Returns:
             A list of strips with the screen content.
         """
-        chops = self._render_chops(self.size.region, lambda y: True)
-        render_strips = [Strip.join(chop.values()) for chop in chops]
+        if size is None:
+            size = self.size
+        chops = self._render_chops(size.region, lambda y: True)
+        render_strips = [Strip.join(chop.values()) for chop in chops[: size.height]]
         return render_strips
 
     def _render_chops(

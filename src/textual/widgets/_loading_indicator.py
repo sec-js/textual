@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 from time import time
+from typing import TYPE_CHECKING
 
-from rich.console import RenderableType
 from rich.style import Style
 from rich.text import Text
 
-from ..color import Gradient
-from ..events import Mount
-from ..widget import Widget
+if TYPE_CHECKING:
+    from textual.app import RenderResult
+
+from textual import on
+from textual.color import Gradient
+from textual.events import InputEvent, Mount
+from textual.widget import Widget
 
 
 class LoadingIndicator(Widget):
@@ -20,7 +24,8 @@ class LoadingIndicator(Widget):
         height: 100%;
         min-height: 1;
         content-align: center middle;
-        color: $accent;
+        color: $primary;
+        text-style: not reverse;
     }
     LoadingIndicator.-textual-loading-indicator {
         layer: _loading;
@@ -53,7 +58,16 @@ class LoadingIndicator(Widget):
         self._start_time = time()
         self.auto_refresh = 1 / 16
 
-    def render(self) -> RenderableType:
+    @on(InputEvent)
+    def on_input(self, event: InputEvent) -> None:
+        """Prevent all input events from bubbling, thus disabling widgets in a loading state."""
+        event.stop()
+        event.prevent_default()
+
+    def render(self) -> RenderResult:
+        if self.app.animation_level == "none":
+            return Text("Loading...")
+
         elapsed = time() - self._start_time
         speed = 0.8
         dot = "\u25cf"

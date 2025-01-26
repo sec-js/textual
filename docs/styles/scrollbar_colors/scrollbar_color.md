@@ -5,7 +5,7 @@ The `scrollbar-color` style sets the color of the scrollbar.
 ## Syntax
 
 --8<-- "docs/snippets/syntax_block_start.md"
-<a href="./scrollbar_color">scrollbar-color</a>: <a href="../../css_types/color">&lt;color&gt;</a> [<a href="../../css_types/percentage">&lt;percentage&gt;</a>];
+<a href="./scrollbar_color">scrollbar-color</a>: <a href="../../../css_types/color">&lt;color&gt;</a> [<a href="../../../css_types/percentage">&lt;percentage&gt;</a>];
 --8<-- "docs/snippets/syntax_block_end.md"
 
 `scrollbar-color` accepts a [`<color>`](../../css_types/color.md) (with an optional opacity level defined by a [`<percentage>`](../../css_types/percentage.md)) that is used to define the color of a scrollbar.
@@ -29,13 +29,13 @@ The `scrollbar-color` style sets the color of the scrollbar.
 
 === "scrollbars2.tcss"
 
-    ```sass hl_lines="5"
+    ```css hl_lines="5"
     --8<-- "docs/examples/styles/scrollbars2.tcss"
     ```
 
 ## CSS
 
-```sass
+```css
 scrollbar-color: cyan;
 ```
 

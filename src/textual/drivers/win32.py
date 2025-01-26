@@ -9,12 +9,13 @@ from ctypes import Structure, Union, byref, wintypes
 from ctypes.wintypes import BOOL, CHAR, DWORD, HANDLE, SHORT, UINT, WCHAR, WORD
 from typing import IO, TYPE_CHECKING, Callable, List, Optional
 
-from .._xterm_parser import XTermParser
-from ..events import Event, Resize
-from ..geometry import Size
+from textual import constants
+from textual._xterm_parser import XTermParser
+from textual.events import Event, Resize
+from textual.geometry import Size
 
 if TYPE_CHECKING:
-    from ..app import App
+    from textual.app import App
 
 KERNEL32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore
 
@@ -161,8 +162,8 @@ def enable_application_mode() -> Callable[[], None]:
         A callable that will restore terminal to previous state.
     """
 
-    terminal_in = sys.stdin
-    terminal_out = sys.stdout
+    terminal_in = sys.__stdin__
+    terminal_out = sys.__stdout__
 
     current_console_mode_in = get_console_mode(terminal_in)
     current_console_mode_out = get_console_mode(terminal_out)
@@ -226,7 +227,7 @@ class EventMonitor(threading.Thread):
 
     def run(self) -> None:
         exit_requested = self.exit_event.is_set
-        parser = XTermParser(lambda: False)
+        parser = XTermParser(debug=constants.DEBUG)
 
         try:
             read_count = wintypes.DWORD(0)
@@ -243,8 +244,12 @@ class EventMonitor(threading.Thread):
             append_key = keys.append
 
             while not exit_requested():
+
+                for event in parser.tick():
+                    self.process_event(event)
+
                 # Wait for new events
-                if wait_for_handles([hIn], 200) is None:
+                if wait_for_handles([hIn], 100) is None:
                     # No new events
                     continue
 
@@ -264,7 +269,7 @@ class EventMonitor(threading.Thread):
                         # Key event, store unicode char in keys list
                         key_event = input_record.Event.KeyEvent
                         key = key_event.uChar.UnicodeChar
-                        if key_event.bKeyDown or key == "\x1b":
+                        if key_event.bKeyDown:
                             if (
                                 key_event.dwControlKeyState
                                 and key_event.wVirtualKeyCode == 0

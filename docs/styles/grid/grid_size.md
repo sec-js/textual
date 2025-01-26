@@ -11,7 +11,7 @@ The number of rows can be left unspecified and it will be computed automatically
 ## Syntax
 
 --8<-- "docs/snippets/syntax_block_start.md"
-grid-size: <a href="../../css_types/integer">&lt;integer&gt;</a> [<a href="../../css_types/integer">&lt;integer&gt;</a>];
+grid-size: <a href="../../../css_types/integer">&lt;integer&gt;</a> [<a href="../../../css_types/integer">&lt;integer&gt;</a>];
 --8<-- "docs/snippets/syntax_block_end.md"
 
 The `grid-size` style takes one or two non-negative [`<integer>`](../../css_types/integer.md).
@@ -37,7 +37,7 @@ In the first example, we create a grid with 2 columns and 5 rows, although we do
 
 === "grid_size_both.tcss"
 
-    ```sass hl_lines="2"
+    ```css hl_lines="2"
     --8<-- "docs/examples/styles/grid_size_both.tcss"
     ```
 
@@ -60,7 +60,7 @@ In the second example, we create a grid with 2 columns and however many rows are
 
 === "grid_size_columns.tcss"
 
-    ```sass hl_lines="2"
+    ```css hl_lines="2"
     --8<-- "docs/examples/styles/grid_size_columns.tcss"
     ```
 
@@ -68,8 +68,8 @@ In the second example, we create a grid with 2 columns and however many rows are
 
 ## CSS
 
-```sass
-/* Grid with 3 rows and 5 columns */
+```css
+/* Grid with 3 columns and 5 rows */
 grid-size: 3 5;
 
 /* Grid with 4 columns and as many rows as needed */

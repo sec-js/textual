@@ -12,6 +12,10 @@ Screen {
     min-height: 25;
     min-width: 26;
     height: 100%;
+
+    &:inline {
+        margin: 0 2;
+    }
 }
 
 Button {
@@ -23,7 +27,7 @@ Button {
     column-span: 4;
     padding: 0 1;
     height: 100%;
-    background: $primary-lighten-2;
+    background: $panel;
     color: $text;
     content-align: center middle;
     text-align: right;

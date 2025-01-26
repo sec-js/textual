@@ -6,9 +6,11 @@ location.
 
 Note that more extensive testing for editing is done at the Document level.
 """
+
 import pytest
 
 from textual.app import App, ComposeResult
+from textual.events import Paste
 from textual.widgets import TextArea
 from textual.widgets.text_area import Selection
 
@@ -29,7 +31,7 @@ Z"""
 
 class TextAreaApp(App):
     def compose(self) -> ComposeResult:
-        text_area = TextArea()
+        text_area = TextArea.code_editor()
         text_area.load_text(TEXT)
         yield text_area
 
@@ -166,6 +168,57 @@ async def test_delete_right_end_of_line():
 
 
 @pytest.mark.parametrize(
+    "selection,expected_result,expected_clipboard,cursor_end_location",
+    [
+        (Selection.cursor((0, 0)), "", "0123456789", (0, 0)),
+        (Selection.cursor((0, 4)), "", "0123456789", (0, 0)),
+        (Selection.cursor((0, 10)), "", "0123456789", (0, 0)),
+        (Selection((0, 2), (0, 4)), "01456789", "23", (0, 2)),
+        (Selection((0, 4), (0, 2)), "01456789", "23", (0, 2)),
+    ],
+)
+async def test_cut(selection, expected_result, expected_clipboard, cursor_end_location):
+    app = TextAreaApp()
+    async with app.run_test() as pilot:
+        text_area = app.query_one(TextArea)
+        text_area.load_text("0123456789")
+        text_area.selection = selection
+
+        await pilot.press("ctrl+x")
+
+        assert text_area.selection == Selection.cursor(cursor_end_location)
+        assert text_area.text == expected_result
+        assert app.clipboard == expected_clipboard
+
+
+@pytest.mark.parametrize(
+    "selection,expected_result",
+    [
+        # Cursors
+        (Selection.cursor((0, 0)), "345\n678\n9\n"),
+        (Selection.cursor((0, 2)), "345\n678\n9\n"),
+        (Selection.cursor((3, 1)), "012\n345\n678\n"),
+        (Selection.cursor((4, 0)), "012\n345\n678\n9\n"),
+        # Selections
+        (Selection((1, 1), (1, 2)), "012\n35\n678\n9\n"),
+        (Selection((1, 2), (2, 1)), "012\n3478\n9\n"),
+    ],
+)
+async def test_cut_multiline_document(selection, expected_result):
+    app = TextAreaApp()
+    async with app.run_test() as pilot:
+        text_area = app.query_one(TextArea)
+        text_area.load_text("012\n345\n678\n9\n")
+        text_area.selection = selection
+
+        await pilot.press("ctrl+x")
+
+        cursor_row, cursor_column = text_area.cursor_location
+        assert text_area.selection == Selection.cursor((cursor_row, cursor_column))
+        assert text_area.text == expected_result
+
+
+@pytest.mark.parametrize(
     "selection,expected_result",
     [
         (Selection.cursor((0, 0)), ""),
@@ -182,7 +235,7 @@ async def test_delete_line(selection, expected_result):
         text_area.load_text("0123456789")
         text_area.selection = selection
 
-        await pilot.press("ctrl+x")
+        await pilot.press("ctrl+shift+k")
 
         assert text_area.selection == Selection.cursor((0, 0))
         assert text_area.text == expected_result
@@ -217,10 +270,10 @@ async def test_delete_line_multiline_document(selection, expected_result):
         text_area.load_text("012\n345\n678\n9\n")
         text_area.selection = selection
 
-        await pilot.press("ctrl+x")
+        await pilot.press("ctrl+shift+k")
 
-        cursor_row, _ = text_area.cursor_location
-        assert text_area.selection == Selection.cursor((cursor_row, 0))
+        cursor_row, cursor_column = text_area.cursor_location
+        assert text_area.selection == Selection.cursor((cursor_row, cursor_column))
         assert text_area.text == expected_result
 
 
@@ -416,3 +469,97 @@ async def test_delete_word_right_at_end_of_line():
 
         assert text_area.text == "0123456789"
         assert text_area.selection == Selection.cursor((0, 5))
+
+
+@pytest.mark.parametrize(
+    "binding",
+    [
+        "enter",
+        "backspace",
+        "ctrl+u",
+        "ctrl+f",
+        "ctrl+w",
+        "ctrl+k",
+        "ctrl+x",
+        "space",
+        "1",
+        "tab",
+    ],
+)
+async def test_edit_read_only_mode_does_nothing(binding):
+    """Try out various key-presses and bindings and ensure they don't alter
+    the document when read_only=True."""
+    app = TextAreaApp()
+    async with app.run_test() as pilot:
+        text_area = app.query_one(TextArea)
+        text_area.read_only = True
+        selection = Selection.cursor((0, 2))
+        text_area.selection = selection
+
+        await pilot.press(binding)
+
+        assert text_area.text == TEXT
+        assert text_area.selection == selection
+
+
+@pytest.mark.parametrize(
+    "selection",
+    [
+        Selection(start=(1, 0), end=(3, 0)),
+        Selection(start=(3, 0), end=(1, 0)),
+    ],
+)
+async def test_replace_lines_with_fewer_lines(selection):
+    app = TextAreaApp()
+    async with app.run_test() as pilot:
+        text_area = app.query_one(TextArea)
+        text_area.text = SIMPLE_TEXT
+        text_area.selection = selection
+
+        await pilot.press("a")
+
+        expected_text = """\
+ABCDE
+aPQRST
+UVWXY
+Z"""
+        assert text_area.text == expected_text
+        assert text_area.selection == Selection.cursor((1, 1))
+
+
+@pytest.mark.parametrize(
+    "selection",
+    [
+        Selection(start=(1, 0), end=(3, 0)),
+        Selection(start=(3, 0), end=(1, 0)),
+    ],
+)
+async def test_paste(selection):
+    app = TextAreaApp()
+    async with app.run_test() as pilot:
+        text_area = app.query_one(TextArea)
+        text_area.text = SIMPLE_TEXT
+        text_area.selection = selection
+
+        app.post_message(Paste("a"))
+        await pilot.pause()
+
+        expected_text = """\
+ABCDE
+aPQRST
+UVWXY
+Z"""
+        assert text_area.text == expected_text
+        assert text_area.selection == Selection.cursor((1, 1))
+
+
+async def test_paste_read_only_does_nothing():
+    app = TextAreaApp()
+    async with app.run_test() as pilot:
+        text_area = app.query_one(TextArea)
+        text_area.read_only = True
+
+        app.post_message(Paste("hello"))
+        await pilot.pause()
+
+        assert text_area.text == TEXT  # No change

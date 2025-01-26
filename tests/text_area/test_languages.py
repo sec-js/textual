@@ -50,6 +50,7 @@ async def test_setting_language_to_none():
         assert text_area.language is None
 
 
+@pytest.mark.syntax
 async def test_setting_unknown_language():
     app = TextAreaApp()
     async with app.run_test():
@@ -66,24 +67,20 @@ async def test_register_language():
     async with app.run_test():
         text_area = app.query_one(TextArea)
 
-        from tree_sitter_languages import get_language
+        from textual._tree_sitter import get_language
 
-        language = get_language("elm")
-
+        language = get_language("python")
+        assert language is not None
         # ...and register it with no highlights
-        text_area.register_language(language, "")
+        text_area.register_language("python-test", language, "")
 
-        # Ensure that registered language is now available.
-        assert "elm" in text_area.available_languages
-
-        # Switch to the newly registered language
-        text_area.language = "elm"
-
-        assert text_area.language == "elm"
+        assert "python-test" in text_area.available_languages
+        text_area.language = "python-test"
+        assert text_area.language == "python-test"
 
 
 @pytest.mark.syntax
-async def test_register_language_existing_language():
+async def test_update_highlight_query():
     app = TextAreaApp()
     async with app.run_test():
         text_area = app.query_one(TextArea)
@@ -92,7 +89,7 @@ async def test_register_language_existing_language():
         assert len(text_area._highlights) > 0
 
         # Overwriting the highlight query for Python...
-        text_area.register_language("python", "")
+        text_area.update_highlight_query("python", "")
 
         # We've overridden the highlight query with a blank one, so there are no highlights.
         assert text_area._highlights == {}
