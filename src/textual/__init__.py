@@ -1,16 +1,22 @@
+"""
+The root Textual module.
+
+Exposes some commonly used symbols.
+
+"""
+
 from __future__ import annotations
 
 import inspect
 from typing import TYPE_CHECKING, Callable
 
 import rich.repr
-from rich.console import RenderableType
 
-from . import constants
-from ._context import active_app
-from ._log import LogGroup, LogVerbosity
-from ._on import on
-from ._work_decorator import work
+from textual import constants
+from textual._context import active_app
+from textual._log import LogGroup, LogVerbosity
+from textual._on import on
+from textual._work_decorator import work
 
 if TYPE_CHECKING:
     from typing_extensions import TypeAlias
@@ -19,7 +25,6 @@ __all__ = [
     "__version__",  # type: ignore
     "log",
     "on",
-    "panic",
     "work",
 ]
 
@@ -27,13 +32,21 @@ __all__ = [
 LogCallable: TypeAlias = "Callable"
 
 
-def __getattr__(name: str) -> str:
-    """Lazily get the version."""
-    if name == "__version__":
-        from importlib.metadata import version
+if TYPE_CHECKING:
+    from importlib.metadata import version
 
-        return version("textual")
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    __version__ = version("textual")
+    """The version of Textual."""
+
+else:
+
+    def __getattr__(name: str) -> str:
+        """Lazily get the version."""
+        if name == "__version__":
+            from importlib.metadata import version
+
+            return version("textual")
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 class LoggerError(Exception):
@@ -42,7 +55,7 @@ class LoggerError(Exception):
 
 @rich.repr.auto
 class Logger:
-    """A Textual logger."""
+    """A [logger class](/guide/devtools/#logging-handler) that logs to the Textual [console](/guide/devtools#console)."""
 
     def __init__(
         self,
@@ -157,10 +170,11 @@ class Logger:
 
 
 log = Logger(None)
+"""Global logger that logs to the currently active app.
 
-
-def panic(*args: RenderableType) -> None:
-    from ._context import active_app
-
-    app = active_app.get()
-    app.panic(*args)
+Example:
+    ```python
+    from textual import log
+    log(locals())
+    ```
+"""

@@ -11,7 +11,23 @@ from textual.css.query import (
     WrongType,
 )
 from textual.widget import Widget
-from textual.widgets import Label
+from textual.widgets import Input, Label
+
+
+def test_query_errors():
+    app = App()
+
+    with pytest.raises(InvalidQueryFormat):
+        app.query_one("foo_bar")
+
+    with pytest.raises(InvalidQueryFormat):
+        app.query("foo_bar")
+
+    with pytest.raises(InvalidQueryFormat):
+        app.query("1")
+
+    with pytest.raises(InvalidQueryFormat):
+        app.query_one("1")
 
 
 def test_query():
@@ -56,6 +72,11 @@ def test_query():
 
     # repeat tests to account for caching
     for repeat in range(3):
+        assert list(app.query_children()) == [main_view, help_view]
+        assert list(app.query_children("*")) == [main_view, help_view]
+        assert list(app.query_children("#help")) == [help_view]
+        assert list(main_view.query_children(".float")) == [sidebar]
+
         assert list(app.query("Frob")) == []
         assert list(app.query(".frob")) == []
         assert list(app.query("#frob")) == []
@@ -98,7 +119,7 @@ def test_query():
         assert app.query_one("#widget1") == widget1
         assert app.query_one("#widget1", Widget) == widget1
         with pytest.raises(TooManyMatches):
-            _ = app.query_one(Widget)
+            _ = app.query_exactly_one(Widget)
 
         assert app.query("Widget.float")[0] == sidebar
         assert app.query("Widget.float")[0:2] == [sidebar, tooltip]
@@ -244,7 +265,7 @@ async def test_query_set_styles_invalid_css_raises_error():
     app = App()
     async with app.run_test():
         with pytest.raises(DeclarationError):
-            app.query(Widget).set_styles(css="random_rule: 1fr;")
+            app.query(Widget).set_styles(css="random-rule: 1fr;")
 
 
 async def test_query_set_styles_kwds():
@@ -301,7 +322,7 @@ async def test_query_refresh(args):
     refreshes = []
 
     class MyWidget(Widget):
-        def refresh(self, *, repaint=None, layout=None):
+        def refresh(self, *, repaint=None, layout=None, recompose=None):
             super().refresh(repaint=repaint, layout=layout)
             refreshes.append((repaint, layout))
 
@@ -313,3 +334,33 @@ async def test_query_refresh(args):
     async with app.run_test() as pilot:
         app.query(MyWidget).refresh(repaint=args[0], layout=args[1])
         assert refreshes[-1] == args
+
+
+async def test_query_focus_blur():
+    class FocusApp(App):
+        AUTO_FOCUS = None
+
+        def compose(self) -> ComposeResult:
+            yield Input(id="foo")
+            yield Input(id="bar")
+            yield Input(id="baz")
+
+    app = FocusApp()
+    async with app.run_test() as pilot:
+        # Nothing focused
+        assert app.focused is None
+        # Focus first input
+        app.query(Input).focus()
+        await pilot.pause()
+        assert app.focused.id == "foo"
+        # Blur inputs
+        app.query(Input).blur()
+        await pilot.pause()
+        assert app.focused is None
+        # Focus another
+        app.query("#bar").focus()
+        await pilot.pause()
+        assert app.focused.id == "bar"
+        # Focus non existing
+        app.query("#egg").focus()
+        assert app.focused.id == "bar"

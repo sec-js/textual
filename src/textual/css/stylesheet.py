@@ -5,7 +5,7 @@ from collections import defaultdict
 from itertools import chain
 from operator import itemgetter
 from pathlib import Path, PurePath
-from typing import Iterable, NamedTuple, Sequence, cast
+from typing import Final, Iterable, NamedTuple, Sequence, cast
 
 import rich.repr
 from rich.console import Console, ConsoleOptions, RenderableType, RenderResult
@@ -14,22 +14,26 @@ from rich.padding import Padding
 from rich.panel import Panel
 from rich.text import Text
 
-from .._cache import LRUCache
-from ..dom import DOMNode
-from ..widget import Widget
-from .errors import StylesheetError
-from .match import _check_selectors
-from .model import RuleSet
-from .parse import parse
-from .styles import RulesMap, Styles
-from .tokenize import Token, tokenize_values
-from .tokenizer import TokenError
-from .types import CSSLocation, Specificity3, Specificity6
+from textual.cache import LRUCache
+from textual.css.errors import StylesheetError
+from textual.css.match import _check_selectors
+from textual.css.model import RuleSet
+from textual.css.parse import parse
+from textual.css.styles import RulesMap, Styles
+from textual.css.tokenize import Token, tokenize_values
+from textual.css.tokenizer import TokenError
+from textual.css.types import CSSLocation, Specificity3, Specificity6
+from textual.dom import DOMNode
+from textual.markup import parse_style
+from textual.style import Style
+from textual.widget import Widget
 
 _DEFAULT_STYLES = Styles()
 
 
 class StylesheetParseError(StylesheetError):
+    """Raised when the stylesheet could not be parsed."""
+
     def __init__(self, errors: StylesheetErrors) -> None:
         self.errors = errors
 
@@ -38,6 +42,8 @@ class StylesheetParseError(StylesheetError):
 
 
 class StylesheetErrors:
+    """A renderable for stylesheet errors."""
+
     def __init__(self, rules: list[RuleSet]) -> None:
         self.rules = rules
         self.variables: dict[str, str] = {}
@@ -134,6 +140,8 @@ class CssSource(NamedTuple):
 
 @rich.repr.auto(angular=True)
 class Stylesheet:
+    """A Stylesheet generated from Textual CSS."""
+
     def __init__(self, *, variables: dict[str, str] | None = None) -> None:
         self._rules: list[RuleSet] = []
         self._rules_map: dict[str, list[RuleSet]] | None = None
@@ -143,6 +151,7 @@ class Stylesheet:
         self._require_parse = False
         self._invalid_css: set[str] = set()
         self._parse_cache: LRUCache[tuple, list[RuleSet]] = LRUCache(64)
+        self._style_parse_cache: LRUCache[str, Style] = LRUCache(1024 * 4)
 
     def __rich_repr__(self) -> rich.repr.Result:
         yield list(self.source.keys())
@@ -183,6 +192,10 @@ class Stylesheet:
 
     @property
     def css(self) -> str:
+        """The equivalent TCSS for this stylesheet.
+
+        Note that this may not produce the same content as the file(s) used to generate the stylesheet.
+        """
         return "\n\n".join(rule_set.css for rule_set in self.rules)
 
     def copy(self) -> Stylesheet:
@@ -205,6 +218,24 @@ class Stylesheet:
         self.__variable_tokens = None
         self._invalid_css = set()
         self._parse_cache.clear()
+        self._style_parse_cache.clear()
+
+    def parse_style(self, style_text: str | Style) -> Style:
+        """Parse a (visual) Style.
+
+        Args:
+            style_text: Visual style, such as "bold white 90% on $primary"
+
+        Returns:
+            New Style instance.
+        """
+        if isinstance(style_text, Style):
+            return style_text
+        if style_text in self._style_parse_cache:
+            return self._style_parse_cache[style_text]
+        style = parse_style(style_text)
+        self._style_parse_cache[style_text] = style
+        return style
 
     def _parse_rules(
         self,
@@ -245,10 +276,11 @@ class Stylesheet:
                     tie_breaker=tie_breaker,
                 )
             )
+
         except TokenError:
             raise
         except Exception as error:
-            raise StylesheetError(f"failed to parse css; {error}")
+            raise StylesheetError(f"failed to parse css; {error}") from None
 
         self._parse_cache[cache_key] = rules
         return rules
@@ -265,7 +297,7 @@ class Stylesheet:
         """
         filename = os.path.expanduser(filename)
         try:
-            with open(filename, "rt") as css_file:
+            with open(filename, "rt", encoding="utf-8") as css_file:
                 css = css_file.read()
             path = os.path.abspath(filename)
         except Exception:
@@ -407,11 +439,30 @@ class Stylesheet:
 
     @classmethod
     def _check_rule(
-        cls, rule: RuleSet, css_path_nodes: list[DOMNode]
+        cls, rule_set: RuleSet, css_path_nodes: list[DOMNode]
     ) -> Iterable[Specificity3]:
-        for selector_set in rule.selector_set:
+        """Check a rule set, return specificity of applicable rules.
+
+        Args:
+            rule_set: A rule set.
+            css_path_nodes: A list of the nodes from the App to the node being checked.
+
+        Yields:
+            Specificity of any matching selectors.
+        """
+        for selector_set in rule_set.selector_set:
             if _check_selectors(selector_set.selectors, css_path_nodes):
                 yield selector_set.specificity
+
+    # pseudo classes which iterate over multiple nodes
+    # These shouldn't be used in a cache key
+    _EXCLUDE_PSEUDO_CLASSES_FROM_CACHE: Final[set[str]] = {
+        "first-of-type",
+        "last-of-type",
+        "odd",
+        "even",
+        "focus-within",
+    }
 
     def apply(
         self,
@@ -448,14 +499,21 @@ class Stylesheet:
             for rule in rules_map[name]
         }
         rules = list(filter(limit_rules.__contains__, reversed(self.rules)))
-
-        node._has_hover_style = any("hover" in rule.pseudo_classes for rule in rules)
-        node._has_focus_within = any(
-            "focus-within" in rule.pseudo_classes for rule in rules
+        all_pseudo_classes = set().union(*[rule.pseudo_classes for rule in rules])
+        node._has_hover_style = "hover" in all_pseudo_classes
+        node._has_focus_within = "focus-within" in all_pseudo_classes
+        node._has_order_style = not all_pseudo_classes.isdisjoint(
+            {"first-of-type", "last-of-type"}
+        )
+        node._has_odd_or_even = (
+            "odd" in all_pseudo_classes or "even" in all_pseudo_classes
         )
 
-        cache_key: tuple | None
-        if cache is not None:
+        cache_key: tuple | None = None
+
+        if cache is not None and all_pseudo_classes.isdisjoint(
+            self._EXCLUDE_PSEUDO_CLASSES_FROM_CACHE
+        ):
             cache_key = (
                 node._parent,
                 (
@@ -464,7 +522,7 @@ class Stylesheet:
                     else (node._id if f"#{node._id}" in rules_map else None)
                 ),
                 node.classes,
-                node.pseudo_classes,
+                node._pseudo_classes_cache_key,
                 node._css_type_name,
             )
             cached_result: RulesMap | None = cache.get(cache_key)
@@ -472,8 +530,6 @@ class Stylesheet:
                 self.replace_rules(node, cached_result, animate=animate)
                 self._process_component_classes(node)
                 return
-        else:
-            cache_key = None
 
         _check_rule = self._check_rule
         css_path_nodes = node.css_path_nodes
@@ -542,8 +598,7 @@ class Stylesheet:
                         rule_value = getattr(_DEFAULT_STYLES, initial_rule_name)
                     node_rules[initial_rule_name] = rule_value  # type: ignore[literal-required]
 
-            if cache is not None:
-                assert cache_key is not None
+            if cache_key is not None:
                 cache[cache_key] = node_rules
             self.replace_rules(node, node_rules, animate=animate)
         self._process_component_classes(node)

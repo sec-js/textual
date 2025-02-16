@@ -23,9 +23,16 @@ Your test code will help you find bugs early, and alert you if you accidentally 
 
 ## Testing frameworks for Textual
 
-Textual doesn't require any particular test framework.
-You can use any test framework you are familiar with, but we will be using [pytest](https://docs.pytest.org/) in this chapter.
+Textual is an async framework powered by Python's [asyncio](https://docs.python.org/3/library/asyncio.html) library.
+While Textual doesn't require a particular test framework, it must provide support for asyncio testing.
 
+You can use any test framework you are familiar with, but we will be using [pytest](https://docs.pytest.org/)
+along with the [pytest-asyncio](https://pytest-asyncio.readthedocs.io/) plugin in this chapter.
+
+By default, the `pytest-asyncio` plugin requires each async test to be decorated with `@pytest.mark.asyncio`.
+You can avoid having to add this marker to every async test
+by setting `asyncio_mode = auto` in your pytest configuration
+or by running pytest with the `--asyncio-mode=auto` option.
 
 ## Testing apps
 
@@ -84,7 +91,7 @@ Knowing which test has failed will help you quickly track down where your code w
 ## Simulating key presses
 
 We've seen how the [`press`][textual.pilot.Pilot] method simulates keys.
-You can also supply multiple keys to simulate the user typing in to the app.
+You can also supply multiple keys to simulate the user typing into the app.
 Here's an example of simulating the user typing the word "hello".
 
 ```python
@@ -129,6 +136,15 @@ Here's how you would click the line *above* a button.
 
 ```python
 await pilot.click(Button, offset=(0, -1))
+```
+
+### Double & triple clicks
+
+You can simulate double and triple clicks by setting the `times` parameter.
+
+```python
+await pilot.click(Button, times=2)  # Double click
+await pilot.click(Button, times=3)  # Triple click
 ```
 
 ### Modifier keys

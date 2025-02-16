@@ -1,26 +1,28 @@
 from __future__ import annotations
 
-import asyncio
 from dataclasses import dataclass
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 import rich.repr
 from rich.style import Style
 from rich.text import Text, TextType
 
-from .. import events
-from ..app import ComposeResult, RenderResult
-from ..await_complete import AwaitComplete
-from ..binding import Binding, BindingType
-from ..containers import Container, Horizontal, Vertical
-from ..css.query import NoMatches
-from ..events import Mount
-from ..geometry import Offset
-from ..message import Message
-from ..reactive import reactive
-from ..renderables.bar import Bar
-from ..widget import Widget
-from ..widgets import Static
+from textual import events
+from textual.app import ComposeResult, RenderResult
+from textual.await_complete import AwaitComplete
+from textual.binding import Binding, BindingType
+from textual.containers import Container, Horizontal, Vertical
+from textual.css.query import NoMatches
+from textual.events import Mount
+from textual.geometry import Offset
+from textual.message import Message
+from textual.reactive import reactive
+from textual.renderables.bar import Bar
+from textual.widget import Widget
+from textual.widgets import Static
+
+if TYPE_CHECKING:
+    from textual.content import Content, ContentType
 
 
 class Underline(Widget):
@@ -30,10 +32,13 @@ class Underline(Widget):
     Underline {
         width: 1fr;
         height: 1;
-    }
-    Underline > .underline--bar {
-        background: $foreground 10%;
-        color: $accent;
+        & > .underline--bar {
+            color: $block-cursor-background;
+            background: $foreground 10%;
+        }
+        &:ansi {
+            text-style: dim;
+        }
     }
     """
 
@@ -41,7 +46,7 @@ class Underline(Widget):
     """
     | Class | Description |
     | :- | :- |
-    | `underline-bar` | Style of the bar (may be used to change the color). |
+    | `underline--bar` | Style of the bar (may be used to change the color). |
     """
 
     highlight_start = reactive(0)
@@ -91,27 +96,24 @@ class Tab(Static):
     DEFAULT_CSS = """
     Tab {
         width: auto;
-        height: 2;
-        padding: 1 1 0 2;
+        height: 1;
+        padding: 0 1;
         text-align: center;
-        color: $text-disabled;
-    }
-    Tab.-active {
-        text-style: bold;
-        color: $text;
-    }
-    Tab:hover {
-        text-style: bold;
-    }
-    Tab.-active:hover {
-        color: $text;
-    }
-    Tab:disabled {
-        color: $text-disabled;
-        text-opacity: 50%;
-    }
-    Tab.-hidden {
-        display: none;
+        color: $foreground 50%;
+
+        &:hover {
+            color: $foreground;
+        }
+        &:disabled {
+            color: $foreground 25%;
+        }
+
+        &.-active {
+            color: $foreground;
+        }
+        &.-hidden {
+            display: none;
+        }
     }
     """
 
@@ -143,9 +145,12 @@ class Tab(Static):
     class Enabled(TabMessage):
         """A tab was enabled."""
 
+    class Relabelled(TabMessage):
+        """A tab was relabelled."""
+
     def __init__(
         self,
-        label: TextType,
+        label: ContentType,
         *,
         id: str | None = None,
         classes: str | None = None,
@@ -159,9 +164,24 @@ class Tab(Static):
             classes: Space separated list of class names.
             disabled: Whether the tab is disabled or not.
         """
-        self.label = Text.from_markup(label) if isinstance(label, str) else label
         super().__init__(id=id, classes=classes, disabled=disabled)
-        self.update(label)
+        self._label: Content
+        # Setter takes Text or str
+        self.label = label  # type: ignore[assignment]
+
+    @property
+    def label(self) -> Content:
+        """The label for the tab."""
+        return self._label
+
+    @label.setter
+    def label(self, label: ContentType) -> None:
+        self._label = self.render_str(label)
+        self.update(self._label)
+
+    def update(self, content: ContentType = "") -> None:
+        self.post_message(self.Relabelled(self))
+        return super().update(self.render_str(content))
 
     @property
     def label_text(self) -> str:
@@ -183,23 +203,52 @@ class Tabs(Widget, can_focus=True):
     DEFAULT_CSS = """
     Tabs {
         width: 100%;
-        height: 3;
-    }
-    Tabs > #tabs-scroll {
-        overflow: hidden;
-    }
-    Tabs #tabs-list {
-       width: auto;
-       min-height: 2;
-    }
-    Tabs #tabs-list-bar, Tabs #tabs-list {
-        width: auto;
-        height: auto;
-        min-width: 100%;
-        overflow: hidden hidden;
-    }
-    Tabs:focus .underline--bar {
-        background: $foreground 20%;
+        height: 2;
+        &:focus {
+            .underline--bar {
+                background: $foreground 30%;
+            }
+            & .-active {
+                text-style: $block-cursor-text-style;
+                color: $block-cursor-foreground;
+                background: $block-cursor-background;
+            }
+        }
+
+        & > #tabs-scroll {
+            overflow: hidden;
+        }
+
+        #tabs-list {
+            width: auto;
+        }
+        #tabs-list-bar, #tabs-list {
+            width: auto;
+            height: auto;
+            min-width: 100%;
+            overflow: hidden hidden;
+        }
+        &:ansi {
+            #tabs-list {
+                text-style: dim;
+            }
+            & #tabs-list > .-active {
+                text-style: not dim;
+            }
+            &:focus {
+                #tabs-list > .-active {
+                    text-style: bold not dim;
+                }
+            }
+            & .underline--bar {
+                color: ansi_bright_blue;
+                background: ansi_default;
+            }
+            & .-active {
+                color: transparent;
+                background: transparent;
+            }
+        }
     }
     """
 
@@ -267,7 +316,8 @@ class Tabs(Widget, can_focus=True):
     class Cleared(Message):
         """Sent when there are no active tabs.
 
-        This can occur when Tabs are cleared, or if all tabs are hidden.
+        This can occur when Tabs are cleared, if all tabs are hidden, or if the
+        currently active tab is unset.
         """
 
         def __init__(self, tabs: Tabs) -> None:
@@ -309,10 +359,10 @@ class Tabs(Widget, can_focus=True):
         Args:
             *tabs: Positional argument should be explicit Tab objects, or a str or Text.
             active: ID of the tab which should be active on start.
-            name: Optional name for the input widget.
+            name: Optional name for the tabs widget.
             id: Optional ID for the widget.
             classes: Optional initial classes for the widget.
-            disabled: Whether the input is disabled or not.
+            disabled: Whether the widget is disabled or not.
         """
         self._tabs_counter = 0
 
@@ -478,7 +528,7 @@ class Tabs(Widget, can_focus=True):
         underline.highlight_end = 0
         self.call_after_refresh(self.post_message, self.Cleared(self))
         self.active = ""
-        return AwaitComplete(self.query("#tabs-list > Tab").remove()())
+        return AwaitComplete(self.query("#tabs-list > Tab").remove())
 
     def remove_tab(self, tab_or_id: Tab | str | None) -> AwaitComplete:
         """Remove a tab.
@@ -490,7 +540,7 @@ class Tabs(Widget, can_focus=True):
             An optionally awaitable object that waits for the tab to be removed.
         """
         if not tab_or_id:
-            return AwaitComplete(self.app._remove_nodes([], None)())
+            return AwaitComplete()
 
         if isinstance(tab_or_id, Tab):
             remove_tab = tab_or_id
@@ -498,29 +548,24 @@ class Tabs(Widget, can_focus=True):
             try:
                 remove_tab = self.query_one(f"#tabs-list > #{tab_or_id}", Tab)
             except NoMatches:
-                return AwaitComplete(self.app._remove_nodes([], None)())
+                return AwaitComplete()
 
-        removing_active_tab = remove_tab.has_class("-active")
-        next_tab = self._next_active
-        remove_await = remove_tab.remove()
-
-        highlight_updated = asyncio.Event()
+        if remove_tab.has_class("-active"):
+            next_tab = self._next_active
+        else:
+            next_tab = None
 
         async def do_remove() -> None:
             """Perform the remove after refresh so the underline bar gets new positions."""
-            await remove_await
-            if next_tab is None:
+            await remove_tab.remove()
+            if not self.query("#tabs-list > Tab"):
                 self.active = ""
-            elif removing_active_tab:
-                self.active = next_tab.id
-                next_tab.add_class("-active")
+            elif next_tab is not None:
+                self.active = next_tab.id or ""
+            else:
+                self._highlight_active(animate=False)
 
-            highlight_updated.set()
-
-        async def wait_for_highlight_update() -> None:
-            await highlight_updated.wait()
-
-        return AwaitComplete(do_remove(), wait_for_highlight_update())
+        return AwaitComplete(do_remove())
 
     def validate_active(self, active: str) -> str:
         """Check id assigned to active attribute is a valid tab."""
@@ -557,14 +602,17 @@ class Tabs(Widget, can_focus=True):
 
     def watch_active(self, previously_active: str, active: str) -> None:
         """Handle a change to the active tab."""
+        self.query("#tabs-list > Tab.-active").remove_class("-active")
         if active:
             try:
                 active_tab = self.query_one(f"#tabs-list > #{active}", Tab)
             except NoMatches:
                 return
-            self.query("#tabs-list > Tab.-active").remove_class("-active")
             active_tab.add_class("-active")
+
             self._highlight_active(animate=previously_active != "")
+
+            self._scroll_active_tab()
             self.post_message(self.TabActivated(self, active_tab))
         else:
             underline = self.query_one(Underline)
@@ -572,7 +620,10 @@ class Tabs(Widget, can_focus=True):
             underline.highlight_end = 0
             self.post_message(self.Cleared(self))
 
-    def _highlight_active(self, animate: bool = True) -> None:
+    def _highlight_active(
+        self,
+        animate: bool = True,
+    ) -> None:
         """Move the underline bar to under the active tab.
 
         Args:
@@ -580,35 +631,53 @@ class Tabs(Widget, can_focus=True):
         """
         underline = self.query_one(Underline)
         try:
-            active_tab = self.query_one(f"#tabs-list > Tab.-active")
+            _active_tab = self.query_one("#tabs-list > Tab.-active")
         except NoMatches:
             underline.show_highlight = False
             underline.highlight_start = 0
             underline.highlight_end = 0
         else:
             underline.show_highlight = True
-            tab_region = active_tab.virtual_region.shrink(active_tab.styles.gutter)
-            start, end = tab_region.column_span
-            if animate:
 
-                def animate_underline() -> None:
-                    """Animate the underline."""
-                    try:
-                        active_tab = self.query_one(f"#tabs-list > Tab.-active")
-                    except NoMatches:
-                        pass
-                    else:
-                        tab_region = active_tab.virtual_region.shrink(
-                            active_tab.styles.gutter
+            def move_underline(animate: bool) -> None:
+                """Move the tab underline.
+
+                Args:
+                    animate: animate the underline to its new position.
+                """
+                try:
+                    active_tab = self.query_one("#tabs-list > Tab.-active")
+                except NoMatches:
+                    pass
+                else:
+                    tab_region = active_tab.virtual_region.shrink(
+                        active_tab.styles.gutter
+                    )
+                    start, end = tab_region.column_span
+                    if animate:
+                        underline.animate(
+                            "highlight_start",
+                            start,
+                            duration=0.3,
+                            level="basic",
                         )
-                        start, end = tab_region.column_span
-                        underline.animate("highlight_start", start, duration=0.3)
-                        underline.animate("highlight_end", end, duration=0.3)
+                        underline.animate(
+                            "highlight_end",
+                            end,
+                            duration=0.3,
+                            level="basic",
+                        )
+                    else:
+                        underline.highlight_start = start
+                        underline.highlight_end = end
 
-                self.set_timer(0.02, lambda: self.call_after_refresh(animate_underline))
+            if animate and self.app.animation_level != "none":
+                self.set_timer(
+                    0.02,
+                    lambda: self.call_after_refresh(move_underline, True),
+                )
             else:
-                underline.highlight_start = start
-                underline.highlight_end = end
+                self.call_after_refresh(move_underline, False)
 
     async def _on_tab_clicked(self, event: Tab.Clicked) -> None:
         """Activate a tab that was clicked."""
@@ -625,7 +694,6 @@ class Tabs(Widget, can_focus=True):
         self.query("#tabs-list Tab.-active").remove_class("-active")
         tab.add_class("-active")
         self.active = tab.id or ""
-        self.query_one("#tabs-scroll").scroll_to_center(tab, force=True)
 
     def _on_underline_clicked(self, event: Underline.Clicked) -> None:
         """The underline was clicked.
@@ -639,7 +707,7 @@ class Tabs(Widget, can_focus=True):
         offset = event.offset + (0, -1)
         self.focus()
         for tab in self.query(Tab):
-            if offset in tab.region:
+            if offset in tab.region and not tab.disabled:
                 self._activate_tab(tab)
                 break
 
@@ -667,21 +735,24 @@ class Tabs(Widget, can_focus=True):
         self._move_tab(-1)
 
     def _move_tab(self, direction: int) -> None:
-        """Activate the next tab.
+        """Activate the next enabled tab in the given direction.
+
+        Tab selection wraps around. If no tab is currently active, the "next"
+        tab is set to be the first and the "previous" tab is the last one.
 
         Args:
             direction: +1 for the next tab, -1 for the previous.
         """
         active_tab = self.active_tab
-        if active_tab is None:
-            return
         tabs = self._potentially_active_tabs
         if not tabs:
+            return
+        if not active_tab:
+            self.active = tabs[0 if direction == 1 else -1].id or ""
             return
         tab_count = len(tabs)
         new_tab_index = (tabs.index(active_tab) + direction) % tab_count
         self.active = tabs[new_tab_index].id or ""
-        self._scroll_active_tab()
 
     def _on_tab_disabled(self, event: Tab.Disabled) -> None:
         """Re-post the disabled message."""
@@ -692,6 +763,11 @@ class Tabs(Widget, can_focus=True):
         """Re-post the enabled message."""
         event.stop()
         self.post_message(self.TabEnabled(self, event.tab))
+
+    def _on_tab_relabelled(self, event: Tab.Relabelled) -> None:
+        """Redraw the highlight when tab is relabelled."""
+        event.stop()
+        self._highlight_active()
 
     def disable(self, tab_id: str) -> Tab:
         """Disable the indicated tab.
@@ -761,7 +837,7 @@ class Tabs(Widget, can_focus=True):
             next_tab = self._next_active
             self.active = next_tab.id or "" if next_tab else ""
         tab_to_hide.add_class("-hidden")
-        self.post_message(self.TabHidden(self, tab_to_hide))
+        self.post_message(self.TabHidden(self, tab_to_hide).set_sender(self))
         self.call_after_refresh(self._highlight_active)
         return tab_to_hide
 
@@ -784,7 +860,7 @@ class Tabs(Widget, can_focus=True):
             raise self.TabError(f"There is no tab with ID {tab_id!r} to show.")
 
         tab_to_show.remove_class("-hidden")
-        self.post_message(self.TabShown(self, tab_to_show))
+        self.post_message(self.TabShown(self, tab_to_show).set_sender(self))
         if not self.active:
             self._activate_tab(tab_to_show)
         self.call_after_refresh(self._highlight_active)

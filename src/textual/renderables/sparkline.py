@@ -6,6 +6,7 @@ from typing import Callable, Generic, Iterable, Sequence, TypeVar
 
 from rich.color import Color
 from rich.console import Console, ConsoleOptions, RenderResult
+from rich.measure import Measurement
 from rich.segment import Segment
 from rich.style import Style
 
@@ -45,7 +46,7 @@ class Sparkline(Generic[T]):
         self.summary_function: SummaryFunction[T] = summary_function
 
     @classmethod
-    def _buckets(cls, data: Sequence[T], num_buckets: int) -> Iterable[Sequence[T]]:
+    def _buckets(cls, data: list[T], num_buckets: int) -> Iterable[Sequence[T]]:
         """Partition ``data`` into ``num_buckets`` buckets. For example, the data
         [1, 2, 3, 4] partitioned into 2 buckets is [[1, 2], [3, 4]].
 
@@ -76,7 +77,7 @@ class Sparkline(Generic[T]):
         minimum, maximum = min(self.data), max(self.data)
         extent = maximum - minimum or 1
 
-        buckets = tuple(self._buckets(self.data, num_buckets=width))
+        buckets = tuple(self._buckets(list(self.data), num_buckets=width))
 
         bucket_index = 0.0
         bars_rendered = 0
@@ -94,6 +95,11 @@ class Sparkline(Generic[T]):
             bars_rendered += 1
             bucket_index += step
             yield Segment(self.BARS[bar_index], Style.from_color(bar_color))
+
+    def __rich_measure__(
+        self, console: "Console", options: "ConsoleOptions"
+    ) -> Measurement:
+        return Measurement(self.width or options.max_width, 1)
 
 
 if __name__ == "__main__":

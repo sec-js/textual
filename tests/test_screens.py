@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import sys
 import threading
@@ -38,7 +40,7 @@ async def test_installed_screens():
     class ScreensApp(App):
         SCREENS = {
             "home": Screen,  # Screen type
-            "one": Screen(),  # Screen instance
+            "one": Screen,  # Screen instance, disallowed as of #4893
             "two": Screen,  # Callable[[], Screen]
         }
 
@@ -72,89 +74,88 @@ async def test_screens():
     # There should be nothing in the children since the app hasn't run yet
     assert not app._nodes
     assert not app.children
-    app._set_active()
+    with app._context():
+        with pytest.raises(ScreenStackError):
+            app.screen
 
-    with pytest.raises(ScreenStackError):
-        app.screen
+        assert not app._installed_screens
 
-    assert not app._installed_screens
+        screen1 = Screen(name="screen1")
+        screen2 = Screen(name="screen2")
+        screen3 = Screen(name="screen3")
 
-    screen1 = Screen(name="screen1")
-    screen2 = Screen(name="screen2")
-    screen3 = Screen(name="screen3")
+        # installs screens
+        app.install_screen(screen1, "screen1")
+        app.install_screen(screen2, "screen2")
 
-    # installs screens
-    app.install_screen(screen1, "screen1")
-    app.install_screen(screen2, "screen2")
+        # Installing a screen does not add it to the DOM
+        assert not app._nodes
+        assert not app.children
 
-    # Installing a screen does not add it to the DOM
-    assert not app._nodes
-    assert not app.children
+        # Check they are installed
+        assert app.is_screen_installed("screen1")
+        assert app.is_screen_installed("screen2")
 
-    # Check they are installed
-    assert app.is_screen_installed("screen1")
-    assert app.is_screen_installed("screen2")
+        assert app.get_screen("screen1") is screen1
+        with pytest.raises(KeyError):
+            app.get_screen("foo")
 
-    assert app.get_screen("screen1") is screen1
-    with pytest.raises(KeyError):
-        app.get_screen("foo")
+        # Check screen3 is not installed
+        assert not app.is_screen_installed("screen3")
 
-    # Check screen3 is not installed
-    assert not app.is_screen_installed("screen3")
+        # Installs screen3
+        app.install_screen(screen3, "screen3")
+        # Confirm installed
+        assert app.is_screen_installed("screen3")
 
-    # Installs screen3
-    app.install_screen(screen3, "screen3")
-    # Confirm installed
-    assert app.is_screen_installed("screen3")
+        # Check screen stack is empty
+        assert app.screen_stack == []
+        # Push a screen
+        await app.push_screen("screen1")
+        # Check it is on the stack
+        assert app.screen_stack == [screen1]
+        # Check it is current
+        assert app.screen is screen1
+        # There should be one item in the children view
+        assert app.children == (screen1,)
 
-    # Check screen stack is empty
-    assert app.screen_stack == []
-    # Push a screen
-    app.push_screen("screen1")
-    # Check it is on the stack
-    assert app.screen_stack == [screen1]
-    # Check it is current
-    assert app.screen is screen1
-    # There should be one item in the children view
-    assert app.children == (screen1,)
+        # Switch to another screen
+        await app.switch_screen("screen2")
+        # Check it has changed the stack and that it is current
+        assert app.screen_stack == [screen2]
+        assert app.screen is screen2
+        assert app.children == (screen2,)
 
-    # Switch to another screen
-    app.switch_screen("screen2")
-    # Check it has changed the stack and that it is current
-    assert app.screen_stack == [screen2]
-    assert app.screen is screen2
-    assert app.children == (screen2,)
+        # Push another screen
+        await app.push_screen("screen3")
+        assert app.screen_stack == [screen2, screen3]
+        assert app.screen is screen3
+        # Only the current screen is in children
+        assert app.children == (screen3,)
 
-    # Push another screen
-    app.push_screen("screen3")
-    assert app.screen_stack == [screen2, screen3]
-    assert app.screen is screen3
-    # Only the current screen is in children
-    assert app.children == (screen3,)
+        # Pop a screen
+        await app.pop_screen()
+        assert app.screen is screen2
+        assert app.screen_stack == [screen2]
 
-    # Pop a screen
-    assert app.pop_screen() is screen3
-    assert app.screen is screen2
-    assert app.screen_stack == [screen2]
+        # Uninstall screens
+        app.uninstall_screen(screen1)
+        assert not app.is_screen_installed(screen1)
+        app.uninstall_screen("screen3")
+        assert not app.is_screen_installed(screen1)
 
-    # Uninstall screens
-    app.uninstall_screen(screen1)
-    assert not app.is_screen_installed(screen1)
-    app.uninstall_screen("screen3")
-    assert not app.is_screen_installed(screen1)
+        # Check we can't uninstall a screen on the stack
+        with pytest.raises(ScreenStackError):
+            app.uninstall_screen(screen2)
 
-    # Check we can't uninstall a screen on the stack
-    with pytest.raises(ScreenStackError):
-        app.uninstall_screen(screen2)
+        # Check we can't pop last screen
+        with pytest.raises(ScreenStackError):
+            app.pop_screen()
 
-    # Check we can't pop last screen
-    with pytest.raises(ScreenStackError):
-        app.pop_screen()
-
-    screen1.remove()
-    screen2.remove()
-    screen3.remove()
-    await app._shutdown()
+        screen1.remove()
+        screen2.remove()
+        screen3.remove()
+        await app._shutdown()
 
 
 async def test_auto_focus_on_screen_if_app_auto_focus_is_none():
@@ -293,15 +294,18 @@ async def test_auto_focus_skips_non_focusable_widgets():
 async def test_dismiss_non_top_screen():
     class MyApp(App[None]):
         async def key_p(self) -> None:
-            self.bottom, top = Screen(), Screen()
+            self.bottom = Screen()
+            top = Screen()
             await self.push_screen(self.bottom)
             await self.push_screen(top)
 
     app = MyApp()
     async with app.run_test() as pilot:
         await pilot.press("p")
-        with pytest.raises(ScreenStackError):
-            app.bottom.dismiss()
+        # A noop if not the top
+        stack = list(app.screen_stack)
+        await app.bottom.dismiss()
+        assert app.screen_stack == stack
 
 
 async def test_dismiss_action():
@@ -323,6 +327,25 @@ async def test_dismiss_action():
         assert app.bingo
 
 
+async def test_dismiss_action_no_argument():
+    class ConfirmScreen(Screen[bool]):
+        BINDINGS = [("y", "dismiss", "Dismiss")]
+
+    class MyApp(App[None]):
+        bingo = False
+
+        def on_mount(self) -> None:
+            self.push_screen(ConfirmScreen(), callback=self.callback)
+
+        def callback(self, result: bool | None) -> None:
+            self.bingo = result
+
+    app = MyApp()
+    async with app.run_test() as pilot:
+        await pilot.press("y")
+        assert app.bingo is None
+
+
 async def test_switch_screen_no_op():
     """Regression test for https://github.com/Textualize/textual/issues/2650"""
 
@@ -330,7 +353,7 @@ async def test_switch_screen_no_op():
         pass
 
     class MyApp(App[None]):
-        SCREENS = {"screen": MyScreen()}
+        SCREENS = {"screen": MyScreen}
 
         def on_mount(self):
             self.push_screen("screen")
@@ -355,8 +378,8 @@ async def test_switch_screen_updates_results_callback_stack():
 
     class MyApp(App[None]):
         SCREENS = {
-            "a": ScreenA(),
-            "b": ScreenB(),
+            "a": ScreenA,
+            "b": ScreenB,
         }
 
         def callback(self, _):
@@ -383,7 +406,7 @@ async def test_screen_receives_mouse_move_events():
             MouseMoveRecordingScreen.mouse_events.append(event)
 
     class SimpleApp(App[None]):
-        SCREENS = {"a": MouseMoveRecordingScreen()}
+        SCREENS = {"a": MouseMoveRecordingScreen}
 
         def on_mount(self):
             self.push_screen("a")
@@ -415,7 +438,7 @@ async def test_mouse_move_event_bubbles_to_screen_from_widget():
             MouseMoveRecordingScreen.mouse_events.append(event)
 
     class SimpleApp(App[None]):
-        SCREENS = {"a": MouseMoveRecordingScreen()}
+        SCREENS = {"a": MouseMoveRecordingScreen}
 
         def on_mount(self):
             self.push_screen("a")
@@ -496,3 +519,140 @@ async def test_push_screen_wait_for_dismiss_no_worker() -> None:
     with pytest.raises(NoActiveWorker):
         async with app.run_test() as pilot:
             await pilot.press("x", "y")
+
+
+async def test_default_custom_screen() -> None:
+    """Test we can override the default screen."""
+
+    class CustomScreen(Screen):
+        pass
+
+    class CustomScreenApp(App):
+        def get_default_screen(self) -> Screen:
+            return CustomScreen()
+
+    app = CustomScreenApp()
+    async with app.run_test():
+        assert len(app.screen_stack) == 1
+        assert isinstance(app.screen_stack[0], CustomScreen)
+        assert app.screen is app.screen_stack[0]
+
+
+async def test_disallow_screen_instances() -> None:
+    """Test that screen instances are disallowed."""
+
+    class CustomScreen(Screen):
+        pass
+
+    with pytest.raises(ValueError):
+
+        class Bad(App):
+            SCREENS = {"a": CustomScreen()}  # type: ignore
+
+    with pytest.raises(ValueError):
+
+        class Worse(App):
+            MODES = {"a": CustomScreen()}  # type: ignore
+
+    # While we're here, let's make sure that other types
+    # are disallowed.
+    with pytest.raises(TypeError):
+
+        class Terrible(App):
+            MODES = {"a": 42, "b": CustomScreen}  # type: ignore
+
+    with pytest.raises(TypeError):
+
+        class Worst(App):
+            MODES = {"OK": CustomScreen, 1: 2}  # type: ignore
+
+
+async def test_worker_cancellation():
+    """Regression test for https://github.com/Textualize/textual/issues/4884
+
+    The MRE below was pushing a screen in an exclusive worker.
+    This was previously breaking because the second time the worker was launched,
+    it cancelled the first one which was awaiting the screen.
+
+    """
+    from textual import on, work
+    from textual.app import App
+    from textual.containers import Vertical
+    from textual.screen import Screen
+    from textual.widgets import Button, Footer, Label
+
+    class InfoScreen(Screen[bool]):
+        def __init__(self, question: str) -> None:
+            self.question = question
+            super().__init__()
+
+        def compose(self) -> ComposeResult:
+            yield Vertical(
+                Label(self.question, id="info-label"),
+                Button("Ok", variant="primary", id="ok"),
+                id="info-vertical",
+            )
+            yield Footer()
+
+        @on(Button.Pressed, "#ok")
+        def handle_ok(self) -> None:
+            self.dismiss(True)  # Changed the `dismiss` result to compatible type
+
+    class ExampleApp(App):
+        BINDINGS = [("i", "info", "Info")]
+
+        screen_count = 0
+
+        def compose(self) -> ComposeResult:
+            yield Label("This is the default screen")
+            yield Footer()
+
+        @work(exclusive=True)
+        async def action_info(self) -> None:
+            # Since this is an exclusive worker, the second time it is called,
+            # the original `push_screen_wait` is also cancelled
+            self.screen_count += 1
+            await self.push_screen_wait(
+                InfoScreen(f"This is info screen #{self.screen_count}")
+            )
+
+    app = ExampleApp()
+    async with app.run_test() as pilot:
+        # Press i twice to launch 2 InfoScreens
+        await pilot.press("i")
+        await pilot.press("i")
+        # Press enter to activate button to dismiss them
+        await pilot.press("enter")
+        await pilot.press("enter")
+
+
+async def test_get_screen_with_expected_type():
+    """Test get_screen with expected type works"""
+
+    class BadScreen(Screen[None]):
+        pass
+
+    class MyScreen(Screen[None]):
+        def compose(self):
+            yield Label()
+            yield Button()
+
+    class MyApp(App[None]):
+        SCREENS = {"my_screen": MyScreen}
+
+        def on_mount(self):
+            self.push_screen("my_screen")
+
+    app = MyApp()
+    async with app.run_test():
+        screen = app.get_screen("my_screen")
+        # Should be fine
+        assert isinstance(screen, MyScreen)
+
+        screen = app.get_screen("my_screen", MyScreen)
+        # Should be fine
+        assert isinstance(screen, MyScreen)
+
+        # TypeError because my_screen is not a BadScreen
+        with pytest.raises(TypeError):
+            screen = app.get_screen("my_screen", BadScreen)

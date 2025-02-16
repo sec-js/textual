@@ -9,7 +9,7 @@
 ;---------
 
 (boolean) @boolean
-(comment) @comment @spell
+(comment) @comment
 (string) @string
 (integer) @number
 (float) @float
@@ -24,7 +24,7 @@
 "." @punctuation.delimiter
 "," @punctuation.delimiter
 
-"=" @toml.operator
+"=" @operator
 
 "[" @punctuation.bracket
 "]" @punctuation.bracket

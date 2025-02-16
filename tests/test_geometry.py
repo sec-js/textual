@@ -1,3 +1,5 @@
+from typing import Literal
+
 import pytest
 
 from textual.geometry import Offset, Region, Size, Spacing, clamp
@@ -62,12 +64,25 @@ def test_clamp():
     assert clamp(10, 0, 10) == 10
     assert clamp(5, 10, 0) == 5
 
+    # range in reverse order
+    assert clamp(5, 10, 0) == 5
+    assert clamp(-1, 10, 0) == 0
+    assert clamp(11, 10, 0) == 10
+    assert clamp(0, 10, 0) == 0
+    assert clamp(10, 10, 0) == 10
+    assert clamp(5, 0, 10) == 5
+
 
 def test_offset_bool():
     assert Offset(1, 0)
     assert Offset(0, 1)
     assert Offset(0, -1)
     assert not Offset(0, 0)
+
+
+def test_offset_transpose():
+    assert Offset(1, 2).transpose == (2, 1)
+    assert Offset(5, 10).transpose == (10, 5)
 
 
 def test_offset_is_origin():
@@ -178,6 +193,7 @@ def test_region_top_right():
 
 def test_region_bottom_right():
     assert Region(1, 2, 3, 4).bottom_right == Offset(4, 6)
+    assert Region(1, 2, 3, 4).bottom_right_inclusive == Offset(3, 5)
 
 
 def test_region_add():
@@ -200,10 +216,6 @@ def test_region_at_offset():
 def test_crop_size():
     assert Region(10, 20, 100, 200).crop_size((50, 40)) == Region(10, 20, 50, 40)
     assert Region(10, 20, 100, 200).crop_size((500, 40)) == Region(10, 20, 100, 40)
-
-
-def test_clip_size():
-    assert Region(10, 10, 100, 80).clip_size((50, 100)) == Region(10, 10, 50, 80)
 
 
 def test_region_overlaps():
@@ -462,17 +474,109 @@ def test_translate_inside():
 
 
 def test_inflect():
+    assert Region(0, 0, 1, 1).inflect() == Region(1, 1, 1, 1)
+    assert Region(0, 0, 1, 1).inflect(margin=Spacing.unpack(1)) == Region(2, 2, 1, 1)
+
     # Default inflect positive
     assert Region(10, 10, 30, 20).inflect(margin=Spacing(2, 2, 2, 2)) == Region(
-        44, 34, 30, 20
+        42, 32, 30, 20
     )
 
     # Inflect y axis negative
     assert Region(10, 10, 30, 20).inflect(
         y_axis=-1, margin=Spacing(2, 2, 2, 2)
-    ) == Region(44, -14, 30, 20)
+    ) == Region(42, -12, 30, 20)
 
     # Inflect y axis negative
     assert Region(10, 10, 30, 20).inflect(
         x_axis=-1, margin=Spacing(2, 2, 2, 2)
-    ) == Region(-24, 34, 30, 20)
+    ) == Region(-22, 32, 30, 20)
+
+
+def test_size_with_height():
+    """Test Size.with_height"""
+    assert Size(1, 2).with_height(10) == Size(1, 10)
+
+
+def test_size_with_width():
+    """Test Size.with_width"""
+    assert Size(1, 2).with_width(10) == Size(10, 2)
+
+
+def test_offset_clamp():
+    assert Offset(1, 2).clamp(3, 3) == Offset(1, 2)
+    assert Offset(3, 2).clamp(3, 3) == Offset(2, 2)
+    assert Offset(-3, 2).clamp(3, 3) == Offset(0, 2)
+    assert Offset(5, 4).clamp(3, 3) == Offset(2, 2)
+
+
+def test_size_clamp_offset():
+    assert Size(3, 3).clamp_offset(Offset(1, 2)) == Offset(1, 2)
+    assert Size(3, 3).clamp_offset(Offset(3, 2)) == Offset(2, 2)
+    assert Size(3, 3).clamp_offset(Offset(-3, 2)) == Offset(0, 2)
+    assert Size(3, 3).clamp_offset(Offset(5, 4)) == Offset(2, 2)
+
+
+@pytest.mark.parametrize(
+    ("region1", "region2", "expected"),
+    [
+        (Region(0, 0, 100, 80), Region(0, 0, 100, 80), Spacing(0, 0, 0, 0)),
+        (Region(0, 0, 100, 80), Region(10, 10, 10, 10), Spacing(10, 80, 60, 10)),
+    ],
+)
+def test_get_spacing_between(region1: Region, region2: Region, expected: Spacing):
+    spacing = region1.get_spacing_between(region2)
+    assert spacing == expected
+    assert region1.shrink(spacing) == region2
+
+
+@pytest.mark.parametrize(
+    "constrain_x,constrain_y,margin,region,container,expected",
+    [
+        # A null-op
+        (
+            "none",
+            "none",
+            Spacing.unpack(0),
+            Region(0, 0, 10, 10),
+            Region(0, 0, 100, 100),
+            Region(0, 0, 10, 10),
+        ),
+        # Negative offset gets moved to 0, 0 + margin
+        (
+            "inside",
+            "inside",
+            Spacing.unpack(1),
+            Region(-5, -5, 10, 10),
+            Region(0, 0, 100, 100),
+            Region(1, 1, 10, 10),
+        ),
+        # Overlapping region gets moved in, with offset
+        (
+            "inside",
+            "inside",
+            Spacing.unpack(1),
+            Region(95, 95, 10, 10),
+            Region(0, 0, 100, 100),
+            Region(89, 89, 10, 10),
+        ),
+        # X coordinate moved inside, region reflected around it's Y axis
+        (
+            "inside",
+            "inflect",
+            Spacing.unpack(1),
+            Region(-5, -5, 10, 10),
+            Region(0, 0, 100, 100),
+            Region(1, 6, 10, 10),
+        ),
+    ],
+)
+def test_constrain(
+    constrain_x: Literal["none", "inside", "inflect"],
+    constrain_y: Literal["none", "inside", "inflect"],
+    margin: Spacing,
+    region: Region,
+    container: Region,
+    expected: Region,
+) -> None:
+    assert region.constrain(constrain_x, constrain_y, margin, container) == expected

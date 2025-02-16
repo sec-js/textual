@@ -6,12 +6,7 @@ import pytest
 
 from textual.app import App, ComposeResult
 from textual.widgets import OptionList
-from textual.widgets.option_list import (
-    DuplicateID,
-    Option,
-    OptionDoesNotExist,
-    Separator,
-)
+from textual.widgets.option_list import DuplicateID, Option, OptionDoesNotExist
 
 
 class OptionListApp(App[None]):
@@ -21,7 +16,7 @@ class OptionListApp(App[None]):
         yield OptionList(
             "0",
             Option("1"),
-            Separator(),
+            None,
             Option("2", disabled=True),
             None,
             Option("3", id="3"),
@@ -153,3 +148,11 @@ async def test_adding_multiple_duplicates_at_once() -> None:
                 ]
             )
         assert option_list.option_count == 5
+
+
+async def test_options_are_available_soon() -> None:
+    """Regression test for https://github.com/Textualize/textual/issues/3903."""
+
+    option = Option("", id="some_id")
+    option_list = OptionList(option)
+    assert option_list.get_option("some_id") is option

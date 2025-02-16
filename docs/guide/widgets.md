@@ -24,9 +24,12 @@ Let's create a simple custom widget to display a greeting.
 --8<-- "docs/examples/guide/widgets/hello01.py"
 ```
 
-The highlighted lines define a custom widget class with just a [render()][textual.widget.Widget.render] method. Textual will display whatever is returned from render in the content area of your widget. We have returned a string in the code above, but there are other possible return types which we will cover later.
+The highlighted lines define a custom widget class with just a [render()][textual.widget.Widget.render] method.
+Textual will display whatever is returned from render in the [content](./content.md) area of your widget.
 
-Note that the text contains tags in square brackets, i.e. `[b]`. This is [console markup](https://rich.readthedocs.io/en/latest/markup.html) which allows you to embed various styles within your content. If you run this you will find that `World` is in bold.
+Note that the text contains tags in square brackets, i.e. `[b]`.
+This is [Textual markup](./content.md#markup) which allows you to embed various styles within your content.
+If you run this you will find that `World` is in bold.
 
 ```{.textual path="docs/examples/guide/widgets/hello01.py"}
 ```
@@ -42,7 +45,7 @@ This (very simple) custom widget may be [styled](./styles.md) in the same way as
 
 === "hello02.tcss"
 
-    ```sass title="hello02.tcss"
+    ```css title="hello02.tcss"
     --8<-- "docs/examples/guide/widgets/hello02.tcss"
     ```
 
@@ -65,7 +68,7 @@ Let's use Static to create a widget which cycles through "hello" in various lang
 
 === "hello03.tcss"
 
-    ```sass title="hello03.tcss"
+    ```css title="hello03.tcss"
     --8<-- "docs/examples/guide/widgets/hello03.tcss"
     ```
 
@@ -94,7 +97,7 @@ Here's the Hello example again, this time the widget has embedded default CSS:
 
 === "hello04.tcss"
 
-    ```sass title="hello04.tcss"
+    ```css title="hello04.tcss"
     --8<-- "docs/examples/guide/widgets/hello04.tcss"
     ```
 
@@ -109,7 +112,7 @@ Default CSS is *scoped* by default.
 All this means is that CSS defined in `DEFAULT_CSS` will affect the widget and potentially its children only.
 This is to prevent you from inadvertently breaking an unrelated widget.
 
-You can disabled scoped CSS by setting the class var `SCOPED_CSS` to `False`.
+You can disable scoped CSS by setting the class var `SCOPED_CSS` to `False`.
 
 #### Default specificity
 
@@ -118,15 +121,16 @@ CSS defined within `DEFAULT_CSS` has an automatically lower [specificity](./CSS.
 
 ## Text links
 
-Text in a widget may be marked up with links which perform an action when clicked. Links in console markup use the following format:
+Text in a widget may be marked up with links which perform an action when clicked.
+Links in markup use the following format:
 
 ```
-"Click [@click='app.bell']Me[/]"
+"Click [@click=app.bell]Me[/]"
 ```
 
 The `@click` tag introduces a click handler, which runs the `app.bell` action.
 
-Let's use markup links in the hello example so that the greeting becomes a link which updates the widget.
+Let's use links in the hello example so that the greeting becomes a link which updates the widget.
 
 
 === "hello05.py"
@@ -137,7 +141,7 @@ Let's use markup links in the hello example so that the greeting becomes a link 
 
 === "hello05.tcss"
 
-    ```sass title="hello05.tcss"
+    ```css title="hello05.tcss"
     --8<-- "docs/examples/guide/widgets/hello05.tcss"
     ```
 
@@ -175,7 +179,7 @@ Let's demonstrate setting a title, both as a class variable and a instance varia
 
 === "hello06.tcss"
 
-    ```sass title="hello06.tcss"
+    ```css title="hello06.tcss"
     --8<-- "docs/examples/guide/widgets/hello06.tcss"
     ```
 
@@ -189,6 +193,69 @@ If the supplied text is too long to fit within the widget, it will be cropped (a
 
 There are a number of styles that influence how titles are displayed (color and alignment).
 See the [style reference](../styles/index.md) for details.
+
+## Focus & keybindings
+
+Widgets can have a list of associated key [bindings](../guide/input.md#bindings),
+which let them call [actions](../guide/actions.md) in response to key presses.
+
+A widget is able to handle key presses if it or one of its descendants has [focus](../guide/input.md#input-focus).
+
+Widgets aren't focusable by default.
+To allow a widget to be focused, we need to set `can_focus=True` when defining a widget subclass.
+Here's an example of a simple focusable widget:
+
+=== "counter01.py"
+
+    ```python title="counter01.py" hl_lines="6"
+    --8<-- "docs/examples/guide/widgets/counter01.py"
+    ```
+
+    1. Allow the widget to receive input focus.
+
+=== "counter.tcss"
+
+    ```css title="counter.tcss" hl_lines="6-11"
+    --8<-- "docs/examples/guide/widgets/counter.tcss"
+    ```
+
+    1. These styles are applied only when the widget has focus.
+
+=== "Output"
+
+    ```{.textual path="docs/examples/guide/widgets/counter01.py"}
+    ```
+
+
+The app above contains three `Counter` widgets, which we can focus by clicking or using ++tab++ and ++shift+tab++.
+
+Now that our counter is focusable, let's add some keybindings to it to allow us to change the count using the keyboard.
+To do this, we add a `BINDINGS` class variable to `Counter`, with bindings for ++up++ and ++down++.
+These new bindings are linked to the `change_count` action, which updates the `count` reactive attribute.
+
+With our bindings in place, we can now change the count of the _currently focused_ counter using ++up++ and ++down++.
+
+=== "counter02.py"
+
+    ```python title="counter02.py" hl_lines="9-12 19-20"
+    --8<-- "docs/examples/guide/widgets/counter02.py"
+    ```
+
+    1. Associates presses of ++up++ or ++k++ with the `change_count` action, passing `1` as the argument to increment the count. The final argument ("Increment") is a user-facing label displayed in the footer when this binding is active.
+    2. Called when the binding is triggered. Take care to add the `action_` prefix to the method name.
+
+=== "counter.tcss"
+
+    ```css title="counter.tcss"
+    --8<-- "docs/examples/guide/widgets/counter.tcss"
+    ```
+
+    1. These styles are applied only when the widget has focus.
+
+=== "Output"
+
+    ```{.textual path="docs/examples/guide/widgets/counter02.py" press="up,tab,down,down"}
+    ```
 
 ## Rich renderables
 
@@ -206,7 +273,7 @@ This app will "play" fizz buzz by displaying a table of the first 15 numbers and
 
 === "fizzbuzz01.tcss"
 
-    ```sass title="fizzbuzz01.tcss" hl_lines="32-35"
+    ```css title="fizzbuzz01.tcss" hl_lines="32-35"
     --8<-- "docs/examples/guide/widgets/fizzbuzz01.tcss"
     ```
 
@@ -230,7 +297,7 @@ Let's modify the default width for the fizzbuzz example. By default, the table w
 
 === "fizzbuzz02.tcss"
 
-    ```sass title="fizzbuzz02.tcss"
+    ```css title="fizzbuzz02.tcss"
     --8<-- "docs/examples/guide/widgets/fizzbuzz02.tcss"
     ```
 
@@ -344,7 +411,7 @@ Textual will call this method as required to get content for every row of charac
 --8<-- "docs/images/render_line.excalidraw.svg"
 </div>
 
-Let's look at an example before we go in to the details. The following Textual app implements a widget with the line API that renders a checkerboard pattern. This might form the basis of a chess / checkers game. Here's the code:
+Let's look at an example before we go into the details. The following Textual app implements a widget with the line API that renders a checkerboard pattern. This might form the basis of a chess / checkers game. Here's the code:
 
 === "checker01.py"
 

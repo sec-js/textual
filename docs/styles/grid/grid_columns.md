@@ -9,7 +9,7 @@ The `grid-columns` style allows to define the width of the columns of the grid.
 ## Syntax
 
 --8<-- "docs/snippets/syntax_block_start.md"
-grid-columns: <a href="../../css_types/scalar">&lt;scalar&gt;</a>+;
+grid-columns: <a href="../../../css_types/scalar">&lt;scalar&gt;</a>+;
 --8<-- "docs/snippets/syntax_block_end.md"
 
 The `grid-columns` style takes one or more [`<scalar>`](../../css_types/scalar.md) that specify the length of the columns of the grid.
@@ -42,13 +42,13 @@ Because there are more rows than scalars in the style definition, the scalars wi
 
 === "grid_columns.tcss"
 
-    ```sass hl_lines="3"
+    ```css hl_lines="3"
     --8<-- "docs/examples/styles/grid_columns.tcss"
     ```
 
 ## CSS
 
-```sass
+```css
 /* Set all columns to have 50% width */
 grid-columns: 50%;
 

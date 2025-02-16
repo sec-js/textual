@@ -4,10 +4,9 @@ from typing import Tuple
 
 from typing_extensions import Literal
 
-from ..color import Color
+from textual.color import Color
 
-Edge = Literal["top", "right", "bottom", "left"]
-DockEdge = Literal["top", "right", "bottom", "left", ""]
+DockEdge = Literal["none", "top", "right", "bottom", "left"]
 EdgeType = Literal[
     "",
     "ascii",
@@ -25,6 +24,7 @@ EdgeType = Literal[
     "hkey",
     "vkey",
     "tall",
+    "tab",
     "panel",
     "wide",
 ]
@@ -37,8 +37,11 @@ BoxSizing = Literal["border-box", "content-box"]
 Overflow = Literal["scroll", "hidden", "auto"]
 EdgeStyle = Tuple[EdgeType, Color]
 TextAlign = Literal["left", "start", "center", "right", "end", "justify"]
-Constrain = Literal["none", "x", "y", "both"]
+Constrain = Literal["none", "inflect", "inside"]
 Overlay = Literal["none", "screen"]
+Position = Literal["relative", "absolute"]
+TextWrap = Literal["wrap", "nowrap"]
+TextOverflow = Literal["clip", "fold", "ellipsis"]
 
 Specificity3 = Tuple[int, int, int]
 Specificity6 = Tuple[int, int, int, int, int, int]

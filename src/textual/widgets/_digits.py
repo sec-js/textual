@@ -1,13 +1,16 @@
 from __future__ import annotations
 
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from rich.align import Align, AlignMethod
-from rich.console import RenderableType
 
-from ..geometry import Size
-from ..renderables.digits import Digits as DigitsRenderable
-from ..widget import Widget
+if TYPE_CHECKING:
+    from textual.app import RenderResult
+
+from textual.geometry import Size
+from textual.renderables.digits import Digits as DigitsRenderable
+from textual.selection import Selection
+from textual.widget import Widget
 
 
 class Digits(Widget):
@@ -17,8 +20,7 @@ class Digits(Widget):
     Digits {
         width: 1fr;
         height: auto;
-        text-align: left;
-        text-style: bold;
+        text-align: left;        
         box-sizing: border-box;
     }
     """
@@ -32,7 +34,8 @@ class Digits(Widget):
         classes: str | None = None,
         disabled: bool = False,
     ) -> None:
-        """
+        """Initialize a Digits widget.
+
         Args:
             value: Value to display in widget.
             name: The name of the widget.
@@ -51,6 +54,9 @@ class Digits(Widget):
         """The current value displayed in the Digits."""
         return self._value
 
+    def get_selection(self, selection: Selection) -> str | None:
+        return self._value
+
     def update(self, value: str) -> None:
         """Update the Digits with a new value.
 
@@ -58,7 +64,7 @@ class Digits(Widget):
             value: New value to display.
 
         Raises:
-            ValueError: If the value isn't a `str`.
+            TypeError: If the value isn't a `str`.
         """
         if not isinstance(value, str):
             raise TypeError("value must be a str")
@@ -68,9 +74,11 @@ class Digits(Widget):
         self._value = value
         self.refresh(layout=layout_required)
 
-    def render(self) -> RenderableType:
+    def render(self) -> RenderResult:
         """Render digits."""
         rich_style = self.rich_style
+        if self.text_selection:
+            rich_style += self.selection_style
         digits = DigitsRenderable(self._value, rich_style)
         text_align = self.styles.text_align
         align = "left" if text_align not in {"left", "center", "right"} else text_align

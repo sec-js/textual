@@ -22,17 +22,19 @@ VALID_BORDER: Final = {
     "round",
     "solid",
     "tall",
+    "tab",
     "thick",
     "vkey",
     "wide",
 }
-VALID_EDGE: Final = {"top", "right", "bottom", "left"}
+VALID_EDGE: Final = {"top", "right", "bottom", "left", "none"}
 VALID_LAYOUT: Final = {"vertical", "horizontal", "grid"}
 
 VALID_BOX_SIZING: Final = {"border-box", "content-box"}
 VALID_OVERFLOW: Final = {"scroll", "hidden", "auto"}
 VALID_ALIGN_HORIZONTAL: Final = {"left", "center", "right"}
 VALID_ALIGN_VERTICAL: Final = {"top", "middle", "bottom"}
+VALID_POSITION: Final = {"relative", "absolute"}
 VALID_TEXT_ALIGN: Final = {
     "start",
     "end",
@@ -60,6 +62,7 @@ VALID_STYLE_FLAGS: Final = {
     "uu",
 }
 VALID_PSEUDO_CLASSES: Final = {
+    "ansi",
     "blur",
     "can-focus",
     "dark",
@@ -68,8 +71,25 @@ VALID_PSEUDO_CLASSES: Final = {
     "focus-within",
     "focus",
     "hover",
+    "inline",
     "light",
+    "nocolor",
+    "first-of-type",
+    "last-of-type",
+    "odd",
+    "even",
 }
 VALID_OVERLAY: Final = {"none", "screen"}
-VALID_CONSTRAIN: Final = {"x", "y", "both", "inflect", "none"}
+VALID_CONSTRAIN: Final = {"inflect", "inside", "none"}
 VALID_KEYLINE: Final = {"none", "thin", "heavy", "double"}
+VALID_HATCH: Final = {"left", "right", "cross", "vertical", "horizontal"}
+VALID_TEXT_WRAP: Final = {"wrap", "nowrap"}
+VALID_TEXT_OVERFLOW: Final = {"clip", "fold", "ellipsis"}
+
+HATCHES: Final = {
+    "left": "╲",
+    "right": "╱",
+    "cross": "╳",
+    "horizontal": "─",
+    "vertical": "│",
+}

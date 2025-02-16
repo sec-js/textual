@@ -19,17 +19,17 @@ There are a number of styles which influence the appearance of these links withi
 ## Syntax
 
 --8<-- "docs/snippets/syntax_block_start.md"
-<a href="./link_background">link-background</a>: <a href="../../css_types/color">&lt;color&gt;</a> [<a href="../../css_types/percentage">&lt;percentage&gt;</a>];
+<a href="./link_background">link-background</a>: <a href="../../../css_types/color">&lt;color&gt;</a> [<a href="../../../css_types/percentage">&lt;percentage&gt;</a>];
 
-<a href="./link_color">link-color</a>: <a href="../../css_types/color">&lt;color&gt;</a> [<a href="../../css_types/percentage">&lt;percentage&gt;</a>];
+<a href="./link_color">link-color</a>: <a href="../../../css_types/color">&lt;color&gt;</a> [<a href="../../../css_types/percentage">&lt;percentage&gt;</a>];
 
-<a href="./link_style">link-style</a>: <a href="../../css_types/text_style">&lt;text-style&gt;</a>;
+<a href="./link_style">link-style</a>: <a href="../../../css_types/text_style">&lt;text-style&gt;</a>;
 
-<a href="./link_background_hover">link-background-hover</a>: <a href="../../css_types/color">&lt;color&gt;</a> [<a href="../../css_types/percentage">&lt;percentage&gt;</a>];
+<a href="./link_background_hover">link-background-hover</a>: <a href="../../../css_types/color">&lt;color&gt;</a> [<a href="../../../css_types/percentage">&lt;percentage&gt;</a>];
 
-<a href="./link_color_hover">link-color-hover</a>: <a href="../../css_types/color">&lt;color&gt;</a> [<a href="../../css_types/percentage">&lt;percentage&gt;</a>];
+<a href="./link_color_hover">link-color-hover</a>: <a href="../../../css_types/color">&lt;color&gt;</a> [<a href="../../../css_types/percentage">&lt;percentage&gt;</a>];
 
-<a href="./link_style_hover">link-style-hover</a>: <a href="../../css_types/text_style">&lt;text-style&gt;</a>;
+<a href="./link_style_hover">link-style-hover</a>: <a href="../../../css_types/text_style">&lt;text-style&gt;</a>;
 --8<-- "docs/snippets/syntax_block_end.md"
 
 Visit each style's reference page to learn more about how the values are used.
@@ -52,7 +52,7 @@ The second label uses CSS to customize the link color, background, and style.
 
 === "links.tcss"
 
-    ```sass
+    ```css
     --8<-- "docs/examples/styles/links.tcss"
     ```
 

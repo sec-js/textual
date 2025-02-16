@@ -9,7 +9,7 @@ The `grid-rows` style allows to define the height of the rows of the grid.
 ## Syntax
 
 --8<-- "docs/snippets/syntax_block_start.md"
-grid-rows: <a href="../../css_types/scalar">&lt;scalar&gt;</a>+;
+grid-rows: <a href="../../../css_types/scalar">&lt;scalar&gt;</a>+;
 --8<-- "docs/snippets/syntax_block_end.md"
 
 The `grid-rows` style takes one or more [`<scalar>`](../../css_types/scalar.md) that specify the length of the rows of the grid.
@@ -42,13 +42,13 @@ Because there are more rows than scalars in the style definition, the scalars wi
 
 === "grid_rows.tcss"
 
-    ```sass hl_lines="3"
+    ```css hl_lines="3"
     --8<-- "docs/examples/styles/grid_rows.tcss"
     ```
 
 ## CSS
 
-```sass
+```css
 /* Set all rows to have 50% height */
 grid-rows: 50%;
 

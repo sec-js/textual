@@ -9,7 +9,7 @@ The `column-span` style specifies how many columns a widget will span in a grid 
 ## Syntax
 
 --8<-- "docs/snippets/syntax_block_start.md"
-column-span: <a href="../../css_types/integer">&lt;integer&gt;</a>;
+column-span: <a href="../../../css_types/integer">&lt;integer&gt;</a>;
 --8<-- "docs/snippets/syntax_block_end.md"
 
 The `column-span` style accepts a single non-negative [`<integer>`](../../css_types/integer.md) that quantifies how many columns the given widget spans.
@@ -31,13 +31,13 @@ The example below shows a 4 by 4 grid where many placeholders span over several 
 
 === "column_span.tcss"
 
-    ```sass hl_lines="2 5 8 11 14 20"
+    ```css hl_lines="2 5 8 11 14 20"
     --8<-- "docs/examples/styles/column_span.tcss"
     ```
 
 ## CSS
 
-```sass
+```css
 column-span: 3;
 ```
 
